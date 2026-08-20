@@ -285,11 +285,15 @@ func cliDesktops(ctx context.Context, cfg config.Config, args []string, jsonOut 
 			if desktop.Name != wanted {
 				continue
 			}
-			password, err := desktopPassword(desktop)
+			token, err := tokenForDesktop(desktop)
 			if err != nil {
 				return err
 			}
-			if err := desktopclient.Screenshot(ctx, desktop, password, args[2]); err != nil {
+			data, err := desktopclient.FetchScreenshot(ctx, desktop, token)
+			if err != nil {
+				return err
+			}
+			if err := os.WriteFile(config.ExpandHome(args[2]), data, 0600); err != nil {
 				return err
 			}
 			if jsonOut {
@@ -416,22 +420,6 @@ func tokenForDesktop(desktop config.Desktop) (string, error) {
 		return "", fmt.Errorf("token environment variable %s is empty", desktop.TokenEnv)
 	}
 	b, err := os.ReadFile(config.ExpandHome(desktop.TokenFile))
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(b)), nil
-}
-func desktopPassword(desktop config.Desktop) (string, error) {
-	if desktop.VNCPasswordEnv != "" {
-		if value := os.Getenv(desktop.VNCPasswordEnv); value != "" {
-			return value, nil
-		}
-		return "", fmt.Errorf("VNC password environment variable %s is empty", desktop.VNCPasswordEnv)
-	}
-	if desktop.VNCPasswordFile == "" {
-		return "", errors.New("vnc_password_file or vnc_password_env is required")
-	}
-	b, err := os.ReadFile(config.ExpandHome(desktop.VNCPasswordFile))
 	if err != nil {
 		return "", err
 	}

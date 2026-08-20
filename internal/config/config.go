@@ -56,19 +56,17 @@ type Widget struct {
 // Desktop describes a managed graphical session. Credentials stay outside
 // YAML; the agent endpoint is the authenticated control/status plane.
 type Desktop struct {
-	Name            string `yaml:"name"`
-	Platform        string `yaml:"platform"`
-	Host            string `yaml:"host"`
-	VNCPort         int    `yaml:"vnc_port,omitempty"`
-	AgentURL        string `yaml:"agent_url"`
-	TokenEnv        string `yaml:"token_env,omitempty"`
-	TokenFile       string `yaml:"token_file,omitempty"`
-	SSHHost         string `yaml:"ssh_host,omitempty"`
-	SSHUser         string `yaml:"ssh_user,omitempty"`
-	SSHPort         int    `yaml:"ssh_port,omitempty"`
-	Backend         string `yaml:"backend,omitempty"`
-	VNCPasswordEnv  string `yaml:"vnc_password_env,omitempty"`
-	VNCPasswordFile string `yaml:"vnc_password_file,omitempty"`
+	Name      string `yaml:"name"`
+	Platform  string `yaml:"platform"`
+	Host      string `yaml:"host"`
+	VNCPort   int    `yaml:"vnc_port,omitempty"`
+	AgentURL  string `yaml:"agent_url"`
+	TokenEnv  string `yaml:"token_env,omitempty"`
+	TokenFile string `yaml:"token_file,omitempty"`
+	SSHHost   string `yaml:"ssh_host,omitempty"`
+	SSHUser   string `yaml:"ssh_user,omitempty"`
+	SSHPort   int    `yaml:"ssh_port,omitempty"`
+	Backend   string `yaml:"backend,omitempty"`
 }
 
 func DefaultPath() string {
@@ -176,9 +174,6 @@ func (c Config) Validate() error {
 		}
 		if (d.TokenEnv == "") == (d.TokenFile == "") {
 			return fmt.Errorf("%s requires exactly one of token_env or token_file", p)
-		}
-		if (d.VNCPasswordEnv != "") && (d.VNCPasswordFile != "") {
-			return fmt.Errorf("%s allows only one VNC password source", p)
 		}
 		if d.SSHPort < 0 || d.SSHPort > 65535 || d.VNCPort < 0 || d.VNCPort > 65535 {
 			return fmt.Errorf("%s.ssh_port is invalid", p)

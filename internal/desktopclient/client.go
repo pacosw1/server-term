@@ -4,11 +4,30 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
 	"github.com/franciscosainzwilliams/server-term/internal/config"
 )
+
+func FetchScreenshot(ctx context.Context, desktop config.Desktop, token string) ([]byte, error) {
+	base := strings.TrimRight(desktop.AgentURL, "/")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/v1/screenshot", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("desktop screenshot: %s", resp.Status)
+	}
+	return io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+}
 
 type Status struct {
 	SchemaVersion int      `json:"schema_version"`

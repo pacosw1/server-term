@@ -90,7 +90,6 @@ desktops:
     agent_url: http://100.89.120.115:7850
     token_file: ~/.config/servterm/desktop/office-mac
     ssh_user: paco
-    vnc_password_file: ~/.config/servterm/desktop/office-mac.vnc
 ```
 
 The initial desktop-agent binary exposes authenticated capability/status

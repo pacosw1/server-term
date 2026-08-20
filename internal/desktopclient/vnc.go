@@ -1,6 +1,7 @@
 package desktopclient
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"image"
@@ -22,10 +23,21 @@ func Screenshot(ctx context.Context, desktop config.Desktop, password, output st
 	if port == 0 {
 		port = 5900
 	}
-	d := net.Dialer{}
-	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", desktop.Host, port))
+	pngData, err := Capture(ctx, desktop.Host, port, password)
 	if err != nil {
 		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(output), 0700); err != nil && filepath.Dir(output) != "." {
+		return err
+	}
+	return os.WriteFile(output, pngData, 0600)
+}
+
+func Capture(ctx context.Context, host string, port int, password string) ([]byte, error) {
+	d := net.Dialer{}
+	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return nil, err
 	}
 	defer conn.Close()
 	if deadline, ok := ctx.Deadline(); ok {
@@ -34,12 +46,12 @@ func Screenshot(ctx context.Context, desktop config.Desktop, password, output st
 	messages := make(chan vnc.ServerMessage, 8)
 	client, err := vnc.Client(conn, &vnc.ClientConfig{Auth: []vnc.ClientAuth{&vnc.PasswordAuth{Password: password}}, ServerMessageCh: messages, ServerMessages: []vnc.ServerMessage{&vnc.FramebufferUpdateMessage{}}})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer client.Close()
 	_ = client.SetEncodings([]vnc.Encoding{&vnc.RawEncoding{}})
 	if err := client.FramebufferUpdateRequest(false, 0, 0, client.FrameBufferWidth, client.FrameBufferHeight); err != nil {
-		return err
+		return nil, err
 	}
 	var update *vnc.FramebufferUpdateMessage
 	select {
@@ -47,10 +59,10 @@ func Screenshot(ctx context.Context, desktop config.Desktop, password, output st
 		var ok bool
 		update, ok = msg.(*vnc.FramebufferUpdateMessage)
 		if !ok {
-			return fmt.Errorf("unexpected VNC message %T", msg)
+			return nil, fmt.Errorf("unexpected VNC message %T", msg)
 		}
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, ctx.Err()
 	}
 	img := image.NewRGBA(image.Rect(0, 0, int(client.FrameBufferWidth), int(client.FrameBufferHeight)))
 	for _, rect := range update.Rectangles {
@@ -66,15 +78,11 @@ func Screenshot(ctx context.Context, desktop config.Desktop, password, output st
 			}
 		}
 	}
-	if err := os.MkdirAll(filepath.Dir(output), 0700); err != nil && filepath.Dir(output) != "." {
-		return err
+	var b bytes.Buffer
+	if err := png.Encode(&b, img); err != nil {
+		return nil, err
 	}
-	f, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return png.Encode(f, img)
+	return b.Bytes(), nil
 }
 
 func colorToRGBA(c vnc.Color) color.RGBA {

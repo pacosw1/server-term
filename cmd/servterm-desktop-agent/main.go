@@ -4,10 +4,12 @@
 package main
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/franciscosainzwilliams/server-term/internal/desktopclient"
 	"net"
 	"net/http"
 	"os"
@@ -35,6 +37,9 @@ func main() {
 	platform := flag.String("platform", runtime.GOOS, "platform label: macos, linux, or windows")
 	backend := flag.String("backend", "auto", "native desktop backend")
 	tokenFile := flag.String("token-file", "", "bearer token file")
+	vncHost := flag.String("vnc-host", "127.0.0.1", "native VNC backend host")
+	vncPort := flag.Int("vnc-port", 5900, "native VNC backend port")
+	vncPasswordFile := flag.String("vnc-password-file", "", "native VNC password file")
 	flag.Parse()
 	token := ""
 	if *tokenFile != "" {
@@ -47,11 +52,31 @@ func main() {
 	if !isLoopback(*listen) && token == "" {
 		fatal(fmt.Errorf("non-loopback listen requires --token-file"))
 	}
-	s := probe(*node, *platform, *backend)
+	s := probe(*node, *platform, *backend, *vncHost, *vncPort)
+	vncPassword := ""
+	if *vncPasswordFile != "" {
+		b, err := os.ReadFile(*vncPasswordFile)
+		if err != nil {
+			fatal(err)
+		}
+		vncPassword = strings.TrimSpace(string(b))
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/status", auth(token, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, s) }))
 	mux.HandleFunc("GET /v1/capabilities", auth(token, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{"schema_version": 1, "capabilities": s.Capabilities})
+	}))
+	mux.HandleFunc("GET /v1/screenshot", auth(token, func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		defer cancel()
+		data, err := desktopclient.Capture(ctx, *vncHost, *vncPort, vncPassword)
+		if err != nil {
+			http.Error(w, "screenshot unavailable: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(data)
 	}))
 	server := &http.Server{Addr: *listen, Handler: mux, ReadHeaderTimeout: 3 * time.Second}
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -59,7 +84,7 @@ func main() {
 	}
 }
 
-func probe(node, platform, requested string) status {
+func probe(node, platform, requested, vncHost string, vncPort int) status {
 	b := requested
 	if b == "auto" {
 		switch platform {
@@ -71,12 +96,20 @@ func probe(node, platform, requested string) status {
 			b = "unsupported"
 		}
 	}
-	running := b != "unsupported" && b != "none"
+	running := b != "unsupported" && b != "none" && canDial(vncHost, vncPort)
 	caps := []string{"status", "capabilities"}
 	if running {
 		caps = append(caps, "vnc")
 	}
 	return status{SchemaVersion: 1, NodeID: node, Platform: platform, Backend: b, Running: running, ViewOnly: true, Capabilities: caps, At: time.Now(), Error: map[bool]string{true: "", false: "no supported native desktop backend detected"}[running]}
+}
+func canDial(host string, port int) bool {
+	c, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", host, port), 500*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
 }
 func detectLinuxBackend() string {
 	for _, name := range []string{"wayvnc", "x11vnc", "gnome-remote-desktop"} {
