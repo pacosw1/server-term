@@ -394,8 +394,10 @@ func cliDesktops(ctx context.Context, cfg config.Config, args []string, jsonOut 
 			}
 		} else {
 			state := "offline"
-			if status.Healthy() {
+			if status.Healthy() && hasCapability(status.Capabilities, "screenshot") {
 				state = "ready"
+			} else if status.Healthy() {
+				state = "needs-permission"
 			}
 			fmt.Printf("%-20s %-8s %-7s backend=%s\n", desktop.Name, state, desktop.Platform, status.Backend)
 		}
@@ -418,6 +420,15 @@ func cliDesktops(ctx context.Context, cfg config.Config, args []string, jsonOut 
 		return errors.New("one or more desktops failed")
 	}
 	return nil
+}
+
+func hasCapability(capabilities []string, wanted string) bool {
+	for _, capability := range capabilities {
+		if capability == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func tokenFor(server config.Server) (string, error) {
