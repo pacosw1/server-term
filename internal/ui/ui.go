@@ -219,6 +219,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.detail && m.detailTab == 7 {
 				return m, openDesktop(m.desktopForServer(m.cursor))
 			}
+		case "s":
+			if !m.detail || m.detailTab != 7 {
+				return m, openSSH(m.cfg.Servers[m.cursor])
+			}
 		case "[":
 			if m.detail && m.rangeIndex > 0 {
 				m.rangeIndex--
@@ -447,9 +451,9 @@ func (m Model) View() string {
 	} else {
 		body = m.overview()
 	}
-	help := "  ↑/↓ navigate  enter details  esc overview  r refresh  q quit"
+	help := "  ↑/↓ navigate  enter details  s SSH  esc overview  r refresh  q quit"
 	if m.detail {
-		help = "  tab / 1..8 widgets  c connect desktop  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
+		help = "  tab / 1..8 widgets  s SSH  c connect desktop  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
 	}
 	header := m.header()
 	footer := dimStyle.Render(help)
@@ -813,6 +817,22 @@ func openDesktop(desktop *config.Desktop) tea.Cmd {
 		}
 		return nil
 	}
+}
+func openSSH(server config.Server) tea.Cmd {
+	args := []string{"-o", "BatchMode=yes"}
+	if server.Port != 0 {
+		args = append(args, "-p", fmt.Sprint(server.Port))
+	}
+	if server.IdentityFile != "" {
+		args = append(args, "-i", config.ExpandHome(server.IdentityFile))
+	}
+	target := server.Address
+	if server.User != "" {
+		target = server.User + "@" + target
+	}
+	args = append(args, target)
+	cmd := exec.Command("ssh", args...)
+	return tea.ExecProcess(cmd, func(err error) tea.Msg { return nil })
 }
 func tabLabel(label string, active bool) string {
 	style := dimStyle
