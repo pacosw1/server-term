@@ -16,7 +16,7 @@ import (
 
 func isCLICommand(command string) bool {
 	switch command {
-	case "status", "inspect", "history", "watch", "stream", "doctor", "widget":
+	case "status", "inspect", "history", "watch", "stream", "doctor", "widget", "desktop":
 		return true
 	}
 	return false

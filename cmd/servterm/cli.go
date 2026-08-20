@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/franciscosainzwilliams/server-term/internal/agentclient"
 	"github.com/franciscosainzwilliams/server-term/internal/config"
+	"github.com/franciscosainzwilliams/server-term/internal/desktopclient"
 	"github.com/franciscosainzwilliams/server-term/internal/metrics"
 	"github.com/franciscosainzwilliams/server-term/internal/widget"
 )
@@ -54,6 +57,9 @@ func runCLI(ctx context.Context, cfg config.Config, args []string) error {
 	}
 	if command == "widget" {
 		return cliWidgets(ctx, cfg, *host, *jsonOut)
+	}
+	if command == "desktop" {
+		return cliDesktops(ctx, cfg, fs.Args(), *jsonOut)
 	}
 	if command == "history" {
 		return cliHistory(ctx, cfg, *host, *minutes, *limit, *jsonOut)
@@ -256,6 +262,123 @@ func cliWidgets(ctx context.Context, cfg config.Config, wanted string, jsonOut b
 	return nil
 }
 
+func cliDesktops(ctx context.Context, cfg config.Config, args []string, jsonOut bool) error {
+	if len(args) == 0 {
+		return errors.New("desktop requires list or doctor")
+	}
+	action := args[0]
+	wanted := ""
+	if len(args) > 1 {
+		wanted = args[1]
+	}
+	if action != "list" && action != "doctor" && action != "connect" {
+		if action != "screenshot" {
+			return fmt.Errorf("unsupported desktop action %q", action)
+		}
+	}
+	if action == "screenshot" && len(args) < 3 {
+		return errors.New("desktop screenshot NAME OUTPUT.png")
+	}
+	if action == "screenshot" {
+		wanted = args[1]
+		for _, desktop := range cfg.Desktops {
+			if desktop.Name != wanted {
+				continue
+			}
+			password, err := desktopPassword(desktop)
+			if err != nil {
+				return err
+			}
+			if err := desktopclient.Screenshot(ctx, desktop, password, args[2]); err != nil {
+				return err
+			}
+			if jsonOut {
+				return printJSON(map[string]any{"schema_version": 1, "desktop": wanted, "output": args[2], "captured": true})
+			}
+			fmt.Printf("captured %s\n", args[2])
+			return nil
+		}
+		return errors.New("no matching desktop")
+	}
+	failed := false
+	for _, desktop := range cfg.Desktops {
+		if wanted != "" && desktop.Name != wanted {
+			continue
+		}
+		if action == "list" {
+			if jsonOut {
+				if err := printJSON(map[string]any{"schema_version": 1, "desktop": desktop}); err != nil {
+					return err
+				}
+			} else {
+				fmt.Printf("%-20s %-8s %s agent=%s\n", desktop.Name, desktop.Platform, desktop.Host, desktop.AgentURL)
+			}
+			continue
+		}
+		if action == "connect" {
+			port := desktop.VNCPort
+			if port == 0 {
+				port = 5900
+			}
+			uri := fmt.Sprintf("vnc://%s:%d", desktop.Host, port)
+			var cmd *exec.Cmd
+			if runtime.GOOS == "darwin" {
+				cmd = exec.Command("open", uri)
+			} else {
+				cmd = exec.Command("xdg-open", uri)
+			}
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("open desktop %s: %w", desktop.Name, err)
+			}
+			if jsonOut {
+				return printJSON(map[string]any{"schema_version": 1, "desktop": desktop.Name, "uri": uri, "opened": true})
+			}
+			fmt.Printf("opened %s\n", uri)
+			return nil
+		}
+		token, err := tokenForDesktop(desktop)
+		if err != nil {
+			if jsonOut {
+				_ = printJSON(map[string]any{"schema_version": 1, "desktop": desktop.Name, "error": err.Error()})
+			}
+			return fmt.Errorf("%s: %w", desktop.Name, err)
+		}
+		status := desktopclient.FetchStatus(ctx, desktop, token)
+		if !status.Healthy() {
+			failed = true
+		}
+		if jsonOut {
+			if err := printJSON(map[string]any{"schema_version": 1, "desktop": desktop.Name, "status": status}); err != nil {
+				return err
+			}
+		} else {
+			state := "offline"
+			if status.Healthy() {
+				state = "ready"
+			}
+			fmt.Printf("%-20s %-8s %-7s backend=%s\n", desktop.Name, state, desktop.Platform, status.Backend)
+		}
+	}
+	if wanted != "" {
+		for _, d := range cfg.Desktops {
+			if d.Name == wanted {
+				if failed {
+					return errors.New("desktop check failed")
+				}
+				return nil
+			}
+		}
+		return errors.New("no matching desktop")
+	}
+	if len(cfg.Desktops) == 0 {
+		return errors.New("no desktops configured")
+	}
+	if failed {
+		return errors.New("one or more desktops failed")
+	}
+	return nil
+}
+
 func tokenFor(server config.Server) (string, error) {
 	if server.TokenEnv != "" {
 		if token := os.Getenv(server.TokenEnv); token != "" {
@@ -280,6 +403,35 @@ func tokenForWidget(provider config.Widget) (string, error) {
 		return "", fmt.Errorf("token environment variable %s is empty", provider.TokenEnv)
 	}
 	b, err := os.ReadFile(config.ExpandHome(provider.TokenFile))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
+}
+func tokenForDesktop(desktop config.Desktop) (string, error) {
+	if desktop.TokenEnv != "" {
+		if token := os.Getenv(desktop.TokenEnv); token != "" {
+			return token, nil
+		}
+		return "", fmt.Errorf("token environment variable %s is empty", desktop.TokenEnv)
+	}
+	b, err := os.ReadFile(config.ExpandHome(desktop.TokenFile))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
+}
+func desktopPassword(desktop config.Desktop) (string, error) {
+	if desktop.VNCPasswordEnv != "" {
+		if value := os.Getenv(desktop.VNCPasswordEnv); value != "" {
+			return value, nil
+		}
+		return "", fmt.Errorf("VNC password environment variable %s is empty", desktop.VNCPasswordEnv)
+	}
+	if desktop.VNCPasswordFile == "" {
+		return "", errors.New("vnc_password_file or vnc_password_env is required")
+	}
+	b, err := os.ReadFile(config.ExpandHome(desktop.VNCPasswordFile))
 	if err != nil {
 		return "", err
 	}

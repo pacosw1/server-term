@@ -18,6 +18,7 @@ type Config struct {
 	SSH             SSHConfig     `yaml:"ssh"`
 	Servers         []Server      `yaml:"servers"`
 	Widgets         []Widget      `yaml:"widgets,omitempty"`
+	Desktops        []Desktop     `yaml:"desktops,omitempty"`
 }
 
 type SSHConfig struct {
@@ -50,6 +51,24 @@ type Widget struct {
 	Endpoint  string `yaml:"endpoint"`
 	TokenEnv  string `yaml:"token_env,omitempty"`
 	TokenFile string `yaml:"token_file,omitempty"`
+}
+
+// Desktop describes a managed graphical session. Credentials stay outside
+// YAML; the agent endpoint is the authenticated control/status plane.
+type Desktop struct {
+	Name            string `yaml:"name"`
+	Platform        string `yaml:"platform"`
+	Host            string `yaml:"host"`
+	VNCPort         int    `yaml:"vnc_port,omitempty"`
+	AgentURL        string `yaml:"agent_url"`
+	TokenEnv        string `yaml:"token_env,omitempty"`
+	TokenFile       string `yaml:"token_file,omitempty"`
+	SSHHost         string `yaml:"ssh_host,omitempty"`
+	SSHUser         string `yaml:"ssh_user,omitempty"`
+	SSHPort         int    `yaml:"ssh_port,omitempty"`
+	Backend         string `yaml:"backend,omitempty"`
+	VNCPasswordEnv  string `yaml:"vnc_password_env,omitempty"`
+	VNCPasswordFile string `yaml:"vnc_password_file,omitempty"`
 }
 
 func DefaultPath() string {
@@ -143,6 +162,26 @@ func (c Config) Validate() error {
 		}
 		if (w.TokenEnv == "") == (w.TokenFile == "") {
 			return fmt.Errorf("%s requires exactly one of token_env or token_file", p)
+		}
+	}
+	for i, d := range c.Desktops {
+		p := fmt.Sprintf("desktops[%d]", i)
+		if strings.TrimSpace(d.Name) == "" || strings.TrimSpace(d.Host) == "" || strings.TrimSpace(d.AgentURL) == "" {
+			return fmt.Errorf("%s.name, host, and agent_url are required", p)
+		}
+		switch d.Platform {
+		case "macos", "linux", "windows":
+		default:
+			return fmt.Errorf("%s.platform must be macos, linux, or windows", p)
+		}
+		if (d.TokenEnv == "") == (d.TokenFile == "") {
+			return fmt.Errorf("%s requires exactly one of token_env or token_file", p)
+		}
+		if (d.VNCPasswordEnv != "") && (d.VNCPasswordFile != "") {
+			return fmt.Errorf("%s allows only one VNC password source", p)
+		}
+		if d.SSHPort < 0 || d.SSHPort > 65535 || d.VNCPort < 0 || d.VNCPort > 65535 {
+			return fmt.Errorf("%s.ssh_port is invalid", p)
 		}
 	}
 	return nil

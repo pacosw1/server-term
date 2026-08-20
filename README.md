@@ -76,6 +76,38 @@ The provider calls only authenticated `GET /api/stats`; it does not execute
 plugin code or expose NVR control actions. It reports stream liveness, drops,
 disk/archive usage, and nvrd CPU/RSS.
 
+### Desktop agents
+
+Desktop inventory is separate from host metrics and keeps control credentials
+outside YAML:
+
+```yaml
+desktops:
+  - name: office-mac
+    platform: macos
+    host: 100.89.120.115
+    vnc_port: 5900
+    agent_url: http://100.89.120.115:7850
+    token_file: ~/.config/servterm/desktop/office-mac
+    ssh_user: paco
+    vnc_password_file: ~/.config/servterm/desktop/office-mac.vnc
+```
+
+The initial desktop-agent binary exposes authenticated capability/status
+endpoints and fails closed when no native capture backend is installed:
+
+```sh
+make build-desktop-agent
+servterm desktop list
+servterm desktop doctor office-mac --json
+servterm desktop connect office-mac
+servterm desktop screenshot office-mac /tmp/office-mac.png
+```
+
+Screen capture/input backends remain platform-specific. The installer will
+probe and install only an explicitly supported backend; it will not execute
+arbitrary shell commands or put VNC passwords in the inventory.
+
 To try the checked-in example on Linux:
 
 ```sh
