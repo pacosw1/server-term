@@ -1,10 +1,15 @@
 package ui
 
 import (
+	stdbuf "bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/png"
 	"math"
 	"os"
+	"os/exec"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +19,7 @@ import (
 	"github.com/franciscosainzwilliams/server-term/internal/agentclient"
 	"github.com/franciscosainzwilliams/server-term/internal/collector"
 	"github.com/franciscosainzwilliams/server-term/internal/config"
+	"github.com/franciscosainzwilliams/server-term/internal/desktopclient"
 	"github.com/franciscosainzwilliams/server-term/internal/metrics"
 )
 
@@ -50,6 +56,11 @@ type historyMsg struct {
 	Samples []metrics.Sample
 	Err     error
 }
+type desktopShotMsg struct {
+	Index int
+	Frame string
+	Err   error
+}
 type Model struct {
 	cfg           config.Config
 	collector     collector.Collector
@@ -63,6 +74,8 @@ type Model struct {
 	displayCPU    []float64
 	displayCores  [][]float64
 	streamBuffers [][]metrics.Sample
+	desktopFrames map[int]string
+	desktopErrors map[int]string
 	width, height int
 	collecting    bool
 	pending       int
@@ -76,7 +89,7 @@ func New(cfg config.Config) Model {
 			n++
 		}
 	}
-	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), collecting: n > 0, pending: n}
+	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopErrors: map[int]string{}, collecting: n > 0, pending: n}
 }
 func (m Model) Init() tea.Cmd { return tea.Batch(append(m.collectAll(), m.nextFrame())...) }
 func (m Model) nextFrame() tea.Cmd {
@@ -156,8 +169,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.detail = true
 		case "tab":
 			if m.detail {
-				m.detailTab = (m.detailTab + 1) % 7
+				maxTabs := 7
+				if m.desktopForServer(m.cursor) != nil {
+					maxTabs = 8
+				}
+				m.detailTab = (m.detailTab + 1) % maxTabs
 				m.detailScroll = 0
+				if m.detailTab == 7 {
+					return m, m.loadDesktop(m.cursor)
+				}
 			}
 		case "1":
 			if m.detail {
@@ -173,6 +193,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.detail {
 				m.detailTab = int(msg.Runes[0] - '1')
 				m.detailScroll = 0
+			}
+		case "8":
+			if m.detail && m.desktopForServer(m.cursor) != nil {
+				m.detailTab = 7
+				m.detailScroll = 0
+				return m, m.loadDesktop(m.cursor)
+			}
+		case "c":
+			if m.detail && m.detailTab == 7 {
+				return m, openDesktop(m.desktopForServer(m.cursor))
 			}
 		case "[":
 			if m.detail && m.rangeIndex > 0 {
@@ -236,6 +266,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case historyMsg:
 		if msg.Err == nil && len(msg.Samples) > 0 {
 			m.history[msg.Index] = msg.Samples
+		}
+	case desktopShotMsg:
+		if msg.Err != nil {
+			m.desktopErrors[msg.Index] = msg.Err.Error()
+			m.desktopFrames[msg.Index] = ""
+		} else {
+			m.desktopErrors[msg.Index] = ""
+			m.desktopFrames[msg.Index] = msg.Frame
 		}
 	case frameMsg:
 		target := time.Now().Add(-time.Second)
@@ -359,7 +397,7 @@ func (m Model) View() string {
 	}
 	help := "  ↑/↓ navigate  enter details  esc overview  r refresh  q quit"
 	if m.detail {
-		help = "  tab / 1..7 widgets  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
+		help = "  tab / 1..8 widgets  c connect desktop  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
 	}
 	header := m.header()
 	footer := dimStyle.Render(help)
@@ -459,6 +497,9 @@ func (m Model) detailView() string {
 	}
 	info := fmt.Sprintf("  %s\n  %s  •  %s  •  kernel %s\n  %d cores  •  uptime %s  •  %d ms\n\n", back, or(s.Hostname, srv.Address), s.OS, s.Kernel, s.Cores, duration(s.UptimeSeconds), s.Latency.Milliseconds())
 	labels := []string{"1 CPU", "2 MEMORY", "3 STORAGE", "4 NETWORK", "5 RUNNERS", "6 PROCESSES", "7 ACCEL"}
+	if desktop := m.desktopForServer(m.cursor); desktop != nil {
+		labels = append(labels, "8 DESKTOP")
+	}
 	tabs := "  "
 	for i, label := range labels {
 		tabs += tabLabel(label, m.detailTab == i) + "  "
@@ -481,8 +522,113 @@ func (m Model) detailView() string {
 		body = processView(s)
 	case 6:
 		body = acceleratorView(s)
+	case 7:
+		body = desktopView(m.desktopForServer(m.cursor), m.desktopFrames[m.cursor], m.desktopErrors[m.cursor], m.width)
 	}
 	return info + common + tabs + body
+}
+
+func (m Model) desktopForServer(index int) *config.Desktop {
+	if index < 0 || index >= len(m.cfg.Servers) {
+		return nil
+	}
+	host := m.cfg.Servers[index].Address
+	for i := range m.cfg.Desktops {
+		if m.cfg.Desktops[i].Host == host {
+			return &m.cfg.Desktops[i]
+		}
+	}
+	return nil
+}
+func desktopView(desktop *config.Desktop, frame, errText string, width int) string {
+	if desktop == nil {
+		return "  No desktop is configured for this server.\n\n"
+	}
+	if errText != "" {
+		return "  DESKTOP\n\n  " + errStyle.Render("screenshot unavailable: "+errText) + "\n\n  Press 8 to retry.\n\n"
+	}
+	if frame != "" {
+		return "  DESKTOP  " + desktop.Name + "\n\n" + frame + "\n"
+	}
+	port := desktop.VNCPort
+	if port == 0 {
+		port = 5900
+	}
+	return fmt.Sprintf("  DESKTOP\n\n  %-14s %s\n  %-14s %s\n  %-14s %d\n  %-14s %s\n\n  %s\n\n", "NAME", desktop.Name, "PLATFORM", desktop.Platform, "VNC PORT", port, "AGENT", desktop.AgentURL, dimStyle.Render("c connect  •  view-only by default  •  agent input requires confirmation"))
+}
+func (m Model) loadDesktop(index int) tea.Cmd {
+	return func() tea.Msg {
+		d := m.desktopForServer(index)
+		if d == nil {
+			return desktopShotMsg{Index: index, Err: fmt.Errorf("no desktop configured")}
+		}
+		token := ""
+		if d.TokenEnv != "" {
+			token = os.Getenv(d.TokenEnv)
+		} else if d.TokenFile != "" {
+			b, err := os.ReadFile(config.ExpandHome(d.TokenFile))
+			if err != nil {
+				return desktopShotMsg{Index: index, Err: err}
+			}
+			token = strings.TrimSpace(string(b))
+		}
+		b, err := desktopclient.FetchScreenshot(context.Background(), *d, token)
+		if err != nil {
+			return desktopShotMsg{Index: index, Err: err}
+		}
+		img, err := png.Decode(stdbuf.NewReader(b))
+		if err != nil {
+			return desktopShotMsg{Index: index, Err: err}
+		}
+		return desktopShotMsg{Index: index, Frame: ansiFrame(img, max(40, min(110, m.width-4)))}
+	}
+}
+func ansiFrame(src image.Image, maxCols int) string {
+	b := src.Bounds()
+	scale := 1.0
+	if b.Dx() > maxCols {
+		scale = float64(maxCols) / float64(b.Dx())
+	}
+	w := max(1, int(float64(b.Dx())*scale))
+	h := max(1, int(float64(b.Dy())*scale))
+	px := func(x, y int) (uint8, uint8, uint8) {
+		sx := b.Min.X + int(float64(x)/scale)
+		sy := b.Min.Y + int(float64(y)/scale)
+		r, g, bl, _ := src.At(sx, sy).RGBA()
+		return uint8(r >> 8), uint8(g >> 8), uint8(bl >> 8)
+	}
+	var out strings.Builder
+	for y := 0; y < h; y += 2 {
+		for x := 0; x < w; x++ {
+			r1, g1, b1 := px(x, y)
+			if y+1 < h {
+				r2, g2, b2 := px(x, y+1)
+				fmt.Fprintf(&out, "\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm▀", r1, g1, b1, r2, g2, b2)
+			} else {
+				fmt.Fprintf(&out, "\x1b[38;2;%d;%d;%dm▀", r1, g1, b1)
+			}
+		}
+		out.WriteString("\x1b[0m\n")
+	}
+	return out.String()
+}
+func openDesktop(desktop *config.Desktop) tea.Cmd {
+	return func() tea.Msg {
+		if desktop == nil {
+			return nil
+		}
+		port := desktop.VNCPort
+		if port == 0 {
+			port = 5900
+		}
+		uri := fmt.Sprintf("vnc://%s:%d", desktop.Host, port)
+		if runtime.GOOS == "darwin" {
+			_ = exec.Command("open", uri).Run()
+		} else {
+			_ = exec.Command("xdg-open", uri).Run()
+		}
+		return nil
+	}
 }
 func tabLabel(label string, active bool) string {
 	style := dimStyle
