@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -42,6 +43,7 @@ func main() {
 	vncPort := flag.Int("vnc-port", 5900, "native VNC backend port")
 	vncPasswordFile := flag.String("vnc-password-file", "", "native VNC password file")
 	captureBackend := flag.String("capture-backend", "auto", "capture backend: auto, native, or vnc")
+	allowInput := flag.Bool("allow-input", false, "enable explicit keyboard/mouse control")
 	flag.Parse()
 	token := ""
 	if *tokenFile != "" {
@@ -55,6 +57,10 @@ func main() {
 		fatal(fmt.Errorf("non-loopback listen requires --token-file"))
 	}
 	s := probe(*node, *platform, *backend, *vncHost, *vncPort)
+	if *allowInput {
+		s.ViewOnly = false
+		s.Capabilities = append(s.Capabilities, "input")
+	}
 	if *captureBackend == "native" || *captureBackend == "auto" {
 		if nativeCaptureAvailable(*platform) {
 			s.Running = true
@@ -102,10 +108,59 @@ func main() {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(data)
 	}))
+	mux.HandleFunc("POST /v1/key", auth(token, func(w http.ResponseWriter, r *http.Request) {
+		if !*allowInput || r.Header.Get("X-Servterm-Confirm") != "yes" {
+			http.Error(w, "input disabled or confirmation missing", http.StatusForbidden)
+			return
+		}
+		key, ok := keySym(r.URL.Query().Get("combo"))
+		if !ok {
+			http.Error(w, "unsupported key combo", http.StatusBadRequest)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		if err := desktopclient.SendVNCKey(ctx, *vncHost, *vncPort, vncPassword, key); err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	}))
+	mux.HandleFunc("POST /v1/click", auth(token, func(w http.ResponseWriter, r *http.Request) {
+		if !*allowInput || r.Header.Get("X-Servterm-Confirm") != "yes" {
+			http.Error(w, "input disabled or confirmation missing", http.StatusForbidden)
+			return
+		}
+		x, xerr := strconv.Atoi(r.URL.Query().Get("x"))
+		y, yerr := strconv.Atoi(r.URL.Query().Get("y"))
+		if xerr != nil || yerr != nil || x < 0 || y < 0 || x > 65535 || y > 65535 {
+			http.Error(w, "invalid coordinates", http.StatusBadRequest)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		if err := desktopclient.SendPointer(ctx, *vncHost, *vncPort, vncPassword, uint16(x), uint16(y), 1); err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		writeJSON(w, map[string]any{"ok": true})
+	}))
 	server := &http.Server{Addr: *listen, Handler: mux, ReadHeaderTimeout: 3 * time.Second}
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		fatal(err)
 	}
+}
+
+func keySym(combo string) (uint32, bool) {
+	keys := map[string]uint32{"enter": 0xff0d, "return": 0xff0d, "esc": 0xff1b, "escape": 0xff1b, "tab": 0xff09, "backspace": 0xff08, "delete": 0xffff, "left": 0xff51, "up": 0xff52, "right": 0xff53, "down": 0xff54, "f1": 0xffbe, "f2": 0xffbf, "f3": 0xffc0, "f4": 0xffc1, "f5": 0xffc2, "f6": 0xffc3, "f7": 0xffc4, "f8": 0xffc5, "f9": 0xffc6, "f10": 0xffc7, "f11": 0xffc8, "f12": 0xffc9, "space": 0x20}
+	if value, ok := keys[strings.ToLower(combo)]; ok {
+		return value, true
+	}
+	runes := []rune(combo)
+	if len(runes) == 1 {
+		return uint32(runes[0]), true
+	}
+	return 0, false
 }
 
 func nativeScreenshot(ctx context.Context, platform string) ([]byte, error) {
@@ -190,7 +245,7 @@ func probe(node, platform, requested, vncHost string, vncPort int) status {
 	running := b != "unsupported" && b != "none" && canDial(vncHost, vncPort)
 	caps := []string{"status", "capabilities"}
 	if running {
-		caps = append(caps, "vnc")
+		caps = append(caps, "vnc", "screenshot")
 	}
 	return status{SchemaVersion: 1, NodeID: node, Platform: platform, Backend: b, Running: running, ViewOnly: true, Capabilities: caps, At: time.Now(), Error: map[bool]string{true: "", false: "no supported native desktop backend detected"}[running]}
 }

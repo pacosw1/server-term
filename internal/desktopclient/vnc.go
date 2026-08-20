@@ -54,6 +54,9 @@ func Capture(ctx context.Context, host string, port int, password string) ([]byt
 		return nil, err
 	}
 	defer client.Close()
+	if err := client.SetPixelFormat(&vnc.PixelFormat{BPP: 32, Depth: 24, BigEndian: false, TrueColor: true, RedMax: 255, GreenMax: 255, BlueMax: 255, RedShift: 16, GreenShift: 8, BlueShift: 0}); err != nil {
+		return nil, err
+	}
 	_ = client.SetEncodings([]vnc.Encoding{&vnc.RawEncoding{}})
 	if err := client.FramebufferUpdateRequest(false, 0, 0, client.FrameBufferWidth, client.FrameBufferHeight); err != nil {
 		return nil, err
@@ -90,6 +93,43 @@ func Capture(ctx context.Context, host string, port int, password string) ([]byt
 	return b.Bytes(), nil
 }
 
+func sendVNC(ctx context.Context, host string, port int, password string, fn func(*vnc.ClientConn) error) error {
+	d := net.Dialer{}
+	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+	}
+	none := vnc.ClientAuthNone(0)
+	auth := []vnc.ClientAuth{&none}
+	if password != "" {
+		auth = []vnc.ClientAuth{&vnc.PasswordAuth{Password: password}, &none}
+	}
+	client, err := vnc.Client(conn, &vnc.ClientConfig{Auth: auth})
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return fn(client)
+}
+
+func SendPointer(ctx context.Context, host string, port int, password string, x, y uint16, mask vnc.ButtonMask) error {
+	return sendVNC(ctx, host, port, password, func(c *vnc.ClientConn) error { return c.PointerEvent(mask, x, y) })
+}
+func SendVNCKey(ctx context.Context, host string, port int, password string, keysym uint32) error {
+	return sendVNC(ctx, host, port, password, func(c *vnc.ClientConn) error {
+		if err := c.KeyEvent(keysym, true); err != nil {
+			return err
+		}
+		return c.KeyEvent(keysym, false)
+	})
+}
+
 func colorToRGBA(c vnc.Color) color.RGBA {
-	return color.RGBA{R: uint8(c.R >> 8), G: uint8(c.G >> 8), B: uint8(c.B >> 8), A: 255}
+	// go-vnc exposes channel values in the negotiated channel range (0..255
+	// for our 8-bit channels), not normalized 16-bit color components.
+	return color.RGBA{R: uint8(c.R), G: uint8(c.G), B: uint8(c.B), A: 255}
 }

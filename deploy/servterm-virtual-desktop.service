@@ -10,7 +10,7 @@ Environment=DISPLAY=:99
 ExecStart=/usr/local/libexec/servterm-virtual-desktop.sh
 Restart=on-failure
 RestartSec=2
-RuntimeDirectory=servterm
+RuntimeDirectory=servterm-desktop
 RuntimeDirectoryMode=0750
 
 [Install]

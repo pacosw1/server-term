@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -274,13 +275,46 @@ func cliDesktops(ctx context.Context, cfg config.Config, args []string, jsonOut 
 	if len(args) > 1 && args[1] == "--json" {
 		jsonOut = true
 	}
-	if action != "list" && action != "doctor" && action != "connect" {
+	if action != "list" && action != "doctor" && action != "connect" && action != "key" && action != "click" {
 		if action != "screenshot" {
 			return fmt.Errorf("unsupported desktop action %q", action)
 		}
 	}
 	if action == "screenshot" && len(args) < 3 {
 		return errors.New("desktop screenshot NAME OUTPUT.png")
+	}
+	if (action == "key" && len(args) < 3) || (action == "click" && len(args) < 4) {
+		return errors.New("desktop key NAME COMBO or desktop click NAME X Y")
+	}
+	if action == "key" || action == "click" {
+		wanted = args[1]
+		for _, desktop := range cfg.Desktops {
+			if desktop.Name != wanted {
+				continue
+			}
+			token, err := tokenForDesktop(desktop)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			if action == "key" {
+				err = desktopclient.SendKey(ctx, desktop, token, args[2])
+			} else {
+				x, _ := strconv.Atoi(args[2])
+				y, _ := strconv.Atoi(args[3])
+				err = desktopclient.Click(ctx, desktop, token, x, y)
+			}
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return printJSON(map[string]any{"schema_version": 1, "desktop": wanted, "action": action, "ok": true})
+			}
+			fmt.Println("ok")
+			return nil
+		}
+		return errors.New("no matching desktop")
 	}
 	if action == "screenshot" {
 		wanted = args[1]
