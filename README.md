@@ -43,6 +43,7 @@ servterm --config ~/.config/servterm/config.yaml status --json
 servterm inspect --host office-nvrd --json
 servterm history --host hetzner-32cpu --minutes 60 --limit 60 --json
 servterm doctor --json
+servterm ssh hetzner-32cpu
 ```
 
 `status`, `inspect`, `history`, and `doctor` return schema-versioned JSON with
@@ -58,6 +59,10 @@ The stream process is intentionally foreground-friendly: use your service
 manager, `nohup`, or a shell supervisor to run it in the background and restart
 it. The output file is append-only and mode `0600`; each line has
 `schema_version`, `server`, and `sample` fields.
+
+`servterm ssh NAME` hands the terminal directly to the configured OpenSSH
+connection (and accepts extra SSH arguments). It is the low-latency terminal-
+only path; desktop capture/control is intentionally a separate surface.
 
 Desktop frames use a persistent agent WebSocket/RFB session while the DESKTOP
 tab is active; they are not fetched by reconnecting VNC for every frame. Set

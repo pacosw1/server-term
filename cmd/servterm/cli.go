@@ -41,6 +41,9 @@ func runCLI(ctx context.Context, cfg config.Config, args []string) error {
 	if command == "watch" || command == "stream" {
 		return cliWatch(ctx, cfg, args[1:])
 	}
+	if command == "ssh" || command == "shell" {
+		return cliSSH(cfg, args[1:])
+	}
 	fs := flag.NewFlagSet("servterm "+command, flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	jsonOut := fs.Bool("json", false, "emit machine-readable JSON")
@@ -87,6 +90,42 @@ func runCLI(ctx context.Context, cfg config.Config, args []string) error {
 		return errors.New("one or more servers are offline")
 	}
 	return nil
+}
+
+func cliSSH(cfg config.Config, args []string) error {
+	if len(args) < 1 {
+		return errors.New("ssh requires a server name")
+	}
+	wanted := args[0]
+	for _, server := range cfg.Servers {
+		if server.Name != wanted {
+			continue
+		}
+		sshArgs := []string{"-o", "BatchMode=yes"}
+		if cfg.SSH.StrictHostKeyChecking != nil && !*cfg.SSH.StrictHostKeyChecking {
+			sshArgs = append(sshArgs, "-o", "StrictHostKeyChecking=accept-new")
+		}
+		if server.Port != 0 {
+			sshArgs = append(sshArgs, "-p", strconv.Itoa(server.Port))
+		}
+		if server.IdentityFile != "" {
+			sshArgs = append(sshArgs, "-i", config.ExpandHome(server.IdentityFile))
+		}
+		target := server.Address
+		if server.User != "" {
+			target = server.User + "@" + target
+		}
+		sshArgs = append(sshArgs, target)
+		if len(args) > 1 {
+			sshArgs = append(sshArgs, args[1:]...)
+		}
+		cmd := exec.Command("ssh", sshArgs...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+	return fmt.Errorf("unknown server %q", wanted)
 }
 
 func collectLatest(ctx context.Context, cfg config.Config, wanted string) []cliServer {
