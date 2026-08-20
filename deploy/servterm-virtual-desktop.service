@@ -1,0 +1,17 @@
+[Unit]
+Description=servterm isolated virtual desktop framebuffer
+After=network.target
+
+[Service]
+Type=simple
+User=servterm-desktop
+Group=servterm-desktop
+Environment=DISPLAY=:99
+ExecStart=/usr/local/libexec/servterm-virtual-desktop.sh
+Restart=on-failure
+RestartSec=2
+RuntimeDirectory=servterm
+RuntimeDirectoryMode=0750
+
+[Install]
+WantedBy=multi-user.target

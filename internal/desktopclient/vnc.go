@@ -44,7 +44,12 @@ func Capture(ctx context.Context, host string, port int, password string) ([]byt
 		_ = conn.SetDeadline(deadline)
 	}
 	messages := make(chan vnc.ServerMessage, 8)
-	client, err := vnc.Client(conn, &vnc.ClientConfig{Auth: []vnc.ClientAuth{&vnc.PasswordAuth{Password: password}}, ServerMessageCh: messages, ServerMessages: []vnc.ServerMessage{&vnc.FramebufferUpdateMessage{}}})
+	none := vnc.ClientAuthNone(0)
+	auth := []vnc.ClientAuth{&none}
+	if password != "" {
+		auth = []vnc.ClientAuth{&vnc.PasswordAuth{Password: password}, &none}
+	}
+	client, err := vnc.Client(conn, &vnc.ClientConfig{Auth: auth, ServerMessageCh: messages, ServerMessages: []vnc.ServerMessage{&vnc.FramebufferUpdateMessage{}}})
 	if err != nil {
 		return nil, err
 	}
