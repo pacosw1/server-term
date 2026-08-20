@@ -1,0 +1,30 @@
+[Unit]
+Description=servterm sanitized GitHub runner metadata probe
+After=local-fs.target
+Before=servterm-agent.service
+
+[Service]
+Type=simple
+User=root
+Group=servterm
+RuntimeDirectory=servterm
+RuntimeDirectoryMode=0750
+ExecStart=/usr/local/bin/servterm-runner-probe --output /run/servterm/runner-jobs.jsonl --interval 1s
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/run/servterm
+
+[Install]
+WantedBy=multi-user.target

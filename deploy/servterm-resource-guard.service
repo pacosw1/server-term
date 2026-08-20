@@ -1,0 +1,26 @@
+[Unit]
+Description=Dynamic soft resource guard for self-hosted CI runners
+Requires=ci-runners.slice
+After=ci-runners.slice local-fs.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/servterm-resource-guard --cgroup /sys/fs/cgroup/ci.slice/ci-runners.slice --interval 5s
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=false
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

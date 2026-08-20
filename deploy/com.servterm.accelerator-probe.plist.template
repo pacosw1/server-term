@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.servterm.accelerator-probe</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/servterm-accelerator-probe</string>
+    <string>--output</string><string>__STATE_DIR__/accelerators.tsv</string>
+    <string>--interval</string><string>1s</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/var/log/servterm-accelerator-probe.log</string>
+  <key>StandardErrorPath</key><string>/var/log/servterm-accelerator-probe.log</string>
+</dict>
+</plist>

@@ -1,0 +1,34 @@
+# RestoreKit's runner was originally started manually. Keep this definition
+# separate so it can be recreated and audited like the other runner fleets.
+services:
+  restorekit-ci-1:
+    image: gopadel/runner:latest
+    container_name: restorekit-ci-1
+    restart: unless-stopped
+    cgroup_parent: ci-runners.slice
+    env_file:
+      - /etc/ci-runners/restorekit.env
+    environment:
+      REPO_URL: https://github.com/pacosw1/restorekit
+      RUNNER_NAME: restorekit-ci-1
+      RUNNER_LABELS: self-hosted,Linux,X64,hetzner,container,restorekit,ci-heavy
+    security_opt: [no-new-privileges:true]
+    init: false
+    stop_grace_period: 60s
+    cpuset: '0-7'
+    mem_limit: 12g
+    volumes:
+      - restorekit-ci1-state:/home/runner/actions-runner
+      - restorekit-ci1-work:/home/runner/_work
+      - restorekit-ci1-tools:/opt/hostedtoolcache
+      - ci-runners_npm-cache:/home/runner/.npm
+
+volumes:
+  restorekit-ci1-state:
+    external: true
+  restorekit-ci1-work:
+    external: true
+  restorekit-ci1-tools:
+    external: true
+  ci-runners_npm-cache:
+    external: true

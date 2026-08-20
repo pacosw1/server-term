@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.servterm.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/servterm-agent</string>
+    <string>--listen</string><string>__LISTEN__</string>
+    <string>--node</string><string>__NODE__</string>
+    <string>--db</string><string>__STATE_DIR__/metrics.db</string>
+    <string>--token-file</string><string>__STATE_DIR__/agent.token</string>
+    <string>--interval</string><string>1s</string>
+    <string>--retention</string><string>720h</string>
+  </array>
+  <key>UserName</key><string>__USER__</string>
+  <key>GroupName</key><string>staff</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ProcessType</key><string>Background</string>
+  <key>StandardOutPath</key><string>__STATE_DIR__/agent.log</string>
+  <key>StandardErrorPath</key><string>__STATE_DIR__/agent.err.log</string>
+</dict>
+</plist>

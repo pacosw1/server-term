@@ -1,0 +1,28 @@
+# Copy this file to ~/.config/servterm/config.yaml and edit it.
+refresh_interval: 3s
+history_size: 60
+ssh:
+  connect_timeout: 3s
+  command_timeout: 8s
+  strict_host_key_checking: true
+
+servers:
+  # Use transport: local to preview servterm on the machine running it.
+  - name: this-machine
+    address: localhost
+    transport: local
+    location: Local
+    tags: [development]
+
+  # OpenSSH config, ssh-agent, ProxyJump, and Tailscale names all work.
+  - name: example-production
+    address: prod-server.your-tailnet.ts.net
+    user: deploy
+    port: 22
+    location: Monterrey
+    tags: [production, web]
+    # identity_file: ~/.ssh/id_ed25519
+    # disks: [/, /data]
+    # Once servterm-agent is installed, these switch this host to live streaming:
+    # agent_url: http://100.64.0.10:7843
+    # token_file: ~/.config/servterm/tokens/example-production

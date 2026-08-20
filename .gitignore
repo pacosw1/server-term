@@ -1,0 +1,7 @@
+/servterm
+/bin/
+/dist/
+/.servterm.yaml
+servterm.yaml
+*.prof
+.DS_Store

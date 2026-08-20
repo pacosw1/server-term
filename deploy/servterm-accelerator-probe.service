@@ -1,0 +1,29 @@
+[Unit]
+Description=servterm sanitized hardware accelerator probe
+After=local-fs.target
+Before=servterm-agent.service
+
+[Service]
+Type=simple
+User=root
+Group=servterm
+RuntimeDirectory=servterm
+RuntimeDirectoryMode=0750
+ExecStart=/usr/local/bin/servterm-accelerator-probe --output /run/servterm/accelerators.tsv --interval 1s
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/run/servterm
+
+[Install]
+WantedBy=multi-user.target

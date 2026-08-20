@@ -1,0 +1,29 @@
+[Unit]
+Description=servterm real-time metrics agent
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=servterm
+Group=servterm
+EnvironmentFile=/etc/servterm/agent.env
+ExecStart=/usr/local/bin/servterm-agent --listen ${SERVTERM_LISTEN} --db /var/lib/servterm/metrics.db --interval 1s --retention 720h
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/var/lib/servterm
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Resource boundary for self-hosted CI runners
+Before=docker.service
+
+[Slice]
+CPUAccounting=true
+MemoryAccounting=true
+CPUQuota=2880%
+MemoryHigh=85%
+MemoryMax=90%
+MemorySwapMax=4G
