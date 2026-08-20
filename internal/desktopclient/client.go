@@ -12,7 +12,12 @@ import (
 )
 
 func FetchScreenshot(ctx context.Context, desktop config.Desktop, token string) ([]byte, error) {
-	base := strings.TrimRight(desktop.AgentURL, "/")
+	baseURL, tunnel, err := endpoint(ctx, desktop)
+	if err != nil {
+		return nil, err
+	}
+	defer tunnel.Close()
+	base := strings.TrimRight(baseURL, "/")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/v1/screenshot", nil)
 	if err != nil {
 		return nil, err
@@ -45,7 +50,13 @@ type Status struct {
 // behind separate capability and confirmation gates.
 func FetchStatus(ctx context.Context, desktop config.Desktop, token string) Status {
 	out := Status{SchemaVersion: 1, Platform: desktop.Platform, Backend: desktop.Backend}
-	base := strings.TrimRight(desktop.AgentURL, "/")
+	baseURL, tunnel, err := endpoint(ctx, desktop)
+	if err != nil {
+		out.Error = err.Error()
+		return out
+	}
+	defer tunnel.Close()
+	base := strings.TrimRight(baseURL, "/")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/v1/status", nil)
 	if err != nil {
 		out.Error = err.Error()

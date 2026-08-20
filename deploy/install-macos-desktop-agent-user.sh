@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-usage() { echo "usage: $0 --binary PATH --listen IP:PORT --node NAME --token TOKEN_FILE --vnc-password PASSWORD_FILE" >&2; exit 2; }
+usage() { echo "usage: $0 --binary PATH --listen IP:PORT --node NAME --token TOKEN_FILE [--vnc-password PASSWORD_FILE]" >&2; exit 2; }
 binary= listen= node= token= password=
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -12,14 +12,13 @@ while [ "$#" -gt 0 ]; do
     *) usage;;
   esac
 done
-[ "$(id -u)" -ne 0 ] && [ -f "$binary" ] && [ -f "$token" ] && [ -f "$password" ] && [ -n "$listen" ] && [ -n "$node" ] || usage
+[ "$(id -u)" -ne 0 ] && [ -f "$binary" ] && [ -f "$token" ] && [ -n "$listen" ] && [ -n "$node" ] || usage
 state="$HOME/Library/Application Support/servterm"
 plist_dir="$HOME/Library/LaunchAgents"
 plist="$plist_dir/com.servterm.desktop-agent.plist"
 install -d -m 0700 "$state" "$plist_dir" "$HOME/.local/bin"
 install -m 0755 "$binary" "$HOME/.local/bin/servterm-desktop-agent"
 install -m 0600 "$token" "$state/desktop-agent.token"
-install -m 0600 "$password" "$state/desktop-vnc.password"
 template_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 escape() { printf '%s' "$1" | sed 's/[&|]/\\&/g'; }
 tmp=$(mktemp /tmp/com.servterm.desktop-agent.plist.XXXXXX)

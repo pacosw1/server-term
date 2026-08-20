@@ -15,13 +15,13 @@ while [ "$#" -gt 0 ]; do
     *) usage;;
   esac
 done
-[ "$(id -u)" -eq 0 ] && [ -f "$binary" ] && [ -n "$listen" ] && [ -n "$node" ] && [ -n "$platform" ] && [ -f "$token" ] && [ -f "$password" ] || usage
+[ "$(id -u)" -eq 0 ] && [ -f "$binary" ] && [ -n "$listen" ] && [ -n "$node" ] && [ -n "$platform" ] && [ -f "$token" ] || usage
 if [ "$backend" != auto ] && ! command -v "$backend" >/dev/null 2>&1; then echo "desktop backend '$backend' is not installed" >&2; exit 1; fi
 if ! id servterm-desktop >/dev/null 2>&1; then useradd --system --home-dir /nonexistent --shell /usr/sbin/nologin servterm-desktop; fi
 install -o root -g root -m 0755 "$binary" /usr/local/bin/servterm-desktop-agent
 install -d -o root -g servterm-desktop -m 0750 /etc/servterm
 install -o root -g servterm-desktop -m 0640 "$token" /etc/servterm/desktop-agent.token
-install -o root -g servterm-desktop -m 0640 "$password" /etc/servterm/desktop-vnc.password
+if [ -n "$password" ]; then install -o root -g servterm-desktop -m 0640 "$password" /etc/servterm/desktop-vnc.password; fi
 cat > /etc/servterm/desktop-agent.env <<EOF
 SERVTERM_LISTEN=$listen
 SERVTERM_NODE=$node

@@ -65,10 +65,12 @@ func main() {
 	vncPassword := ""
 	if *vncPasswordFile != "" {
 		b, err := os.ReadFile(*vncPasswordFile)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			fatal(err)
 		}
-		vncPassword = strings.TrimSpace(string(b))
+		if err == nil {
+			vncPassword = strings.TrimSpace(string(b))
+		}
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/status", auth(token, func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, s) }))
@@ -149,8 +151,19 @@ func nativeScreenshot(ctx context.Context, platform string) ([]byte, error) {
 }
 func nativeCaptureAvailable(platform string) bool {
 	if platform == "macos" || platform == "darwin" {
-		_, err := exec.LookPath("screencapture")
-		return err == nil
+		if _, err := exec.LookPath("screencapture"); err != nil {
+			return false
+		}
+		tmp, err := os.CreateTemp("", "servterm-probe-*.png")
+		if err != nil {
+			return false
+		}
+		path := tmp.Name()
+		_ = tmp.Close()
+		defer os.Remove(path)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return exec.CommandContext(ctx, "screencapture", "-x", "-t", "png", path).Run() == nil
 	}
 	if platform == "linux" {
 		for _, name := range []string{"gnome-screenshot", "scrot", "import"} {
