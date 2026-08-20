@@ -45,8 +45,17 @@ type nvrStats struct {
 		FreeBytes  int64 `json:"FreeBytes"`
 	} `json:"disk"`
 	Process struct {
-		CPUPercent float64 `json:"cpu_percent"`
-		RSSBytes   int64   `json:"rss_bytes"`
+		// nvrd leaves these two untagged, so they marshal as Go field names.
+		// Go's case-insensitive fallback does not bridge "CPUPercent" to a
+		// "cpu_percent" tag, so the keys must match exactly or both read zero.
+		CPUPercent float64 `json:"CPUPercent"`
+		RSSBytes   int64   `json:"RSSBytes"`
+
+		// nvrd forks an ffmpeg per thumbnail, motion sample and snapshot job.
+		// Its own CPU therefore understates it badly -- measured at 141% while
+		// the tree was 394% -- so these totals are preferred when present.
+		TotalCPUPercent float64 `json:"total_cpu_percent"`
+		TotalRSSBytes   int64   `json:"total_rss_bytes"`
 	} `json:"process"`
 }
 
@@ -85,7 +94,16 @@ func FetchNVR(ctx context.Context, provider config.Widget, token string) NVRSnap
 		result.DropsPerSec += stream.DropsPerSec
 	}
 	result.Healthy = result.TotalStreams == 0 || result.LiveStreams > 0
+	// Prefer the whole process tree; fall back to the daemon's own figures
+	// for an older nvrd that does not report a total, so the widget shows
+	// real usage rather than a misleading zero.
 	result.CPUPercent, result.RSSBytes = stats.Process.CPUPercent, stats.Process.RSSBytes
+	if stats.Process.TotalCPUPercent > 0 {
+		result.CPUPercent = stats.Process.TotalCPUPercent
+	}
+	if stats.Process.TotalRSSBytes > 0 {
+		result.RSSBytes = stats.Process.TotalRSSBytes
+	}
 	result.DiskTotal, result.DiskFree = stats.Disk.TotalBytes, stats.Disk.FreeBytes
 	result.StorageBytes, result.OldestMS = stats.Storage.TotalBytes, stats.Storage.OldestSegmentMS
 	return result
