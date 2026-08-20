@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.servterm.desktop-agent</string>
+<key>ProgramArguments</key><array>
+<string>__HOME__/.local/bin/servterm-desktop-agent</string>
+<string>--listen</string><string>__LISTEN__</string>
+<string>--node</string><string>__NODE__</string>
+<string>--platform</string><string>macos</string>
+<string>--backend</string><string>screensharing</string>
+<string>--token-file</string><string>__STATE__/desktop-agent.token</string>
+<string>--vnc-host</string><string>127.0.0.1</string>
+<string>--vnc-port</string><string>5900</string>
+<string>--vnc-password-file</string><string>__STATE__/desktop-vnc.password</string>
+</array>
+<key>RunAtLoad</key><true/>
+<key>KeepAlive</key><true/>
+<key>StandardOutPath</key><string>__STATE__/desktop-agent.log</string>
+<key>StandardErrorPath</key><string>__STATE__/desktop-agent.err.log</string>
+</dict></plist>

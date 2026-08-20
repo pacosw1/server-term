@@ -107,6 +107,20 @@ Screen capture/input backends remain platform-specific. The installer will
 probe and install only an explicitly supported backend; it will not execute
 arbitrary shell commands or put VNC passwords in the inventory.
 
+Installers are provided for the agent control plane:
+
+```sh
+sudo deploy/install-desktop-agent-linux.sh \
+  --binary ./bin/servterm-desktop-agent-linux-amd64 \
+  --listen TAILSCALE_IP:7850 --node linux-box --platform linux \
+  --token /secure/desktop-agent.token \
+  --vnc-password /secure/vnc.password
+```
+
+On macOS use `deploy/install-macos-desktop-agent-user.sh`. Native screen
+sharing/Accessibility permissions and the VNC backend remain explicit host
+setup steps; the installer never silently grants those privileges.
+
 To try the checked-in example on Linux:
 
 ```sh
