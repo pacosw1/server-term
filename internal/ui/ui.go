@@ -72,6 +72,10 @@ type desktopStreamFrameMsg struct {
 	Frame []byte
 	Err   error
 }
+type sshStartMsg struct {
+	Pane *sshPane
+	Err  error
+}
 type Model struct {
 	cfg            config.Config
 	collector      collector.Collector
@@ -199,14 +203,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.detail = true
 		case "tab":
 			if m.detail {
-				maxTabs := 7
+				maxTabs := 8
 				if m.desktopForServer(m.cursor) != nil {
-					maxTabs = 8
+					maxTabs = 9
 				}
 				m.detailTab = (m.detailTab + 1) % maxTabs
 				m.detailScroll = 0
 				if m.detailTab == 7 {
 					return m, m.startDesktop(m.cursor)
+				}
+				if m.detailTab == 8 {
+					return m, m.startSSH(m.cursor)
 				}
 			}
 		case "1":
@@ -230,12 +237,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detailScroll = 0
 				return m, m.startDesktop(m.cursor)
 			}
+		case "9":
+			if m.detail {
+				m.detailTab = 8
+				m.detailScroll = 0
+				return m, m.startSSH(m.cursor)
+			}
 		case "c":
 			if m.detail && m.detailTab == 7 {
 				return m, openDesktop(m.desktopForServer(m.cursor))
 			}
 		case "s":
-			if !m.detail || m.detailTab != 7 {
+			if !m.detail {
+				m.detail = true
+				m.detailTab = 8
+				m.sshText = ""
+				return m, m.startSSH(m.cursor)
+			}
+			if m.detailTab != 7 {
 				pane, err := startSSHPane(m.cfg.Servers[m.cursor])
 				if err != nil {
 					return m, nil
@@ -271,6 +290,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+	case sshStartMsg:
+		if msg.Err != nil {
+			m.sshText = "SSH: " + msg.Err.Error()
+			return m, nil
+		}
+		m.ssh = msg.Pane
+		m.sshText = ""
+		return m, m.ssh.read()
 	case resultMsg:
 		prev := m.samples[msg.Index]
 		metrics.Derive(&prev, &msg.Sample)
@@ -484,18 +511,17 @@ func (m Model) View() string {
 		return "Starting servterm..."
 	}
 	var body string
-	if m.ssh != nil {
-		body = "  SSH SESSION\n\n" + m.sshText
-	} else if m.detail {
+	if m.detail {
 		body = m.detailView()
 	} else {
 		body = m.overview()
 	}
 	help := "  ↑/↓ navigate  enter details  s SSH  esc overview  r refresh  q quit"
-	if m.ssh != nil {
-		help = "  SSH session active  esc close session  ctrl-c remote"
-	} else if m.detail {
-		help = "  tab / 1..8 widgets  s SSH  c connect desktop  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
+	if m.detail {
+		help = "  tab / 1..9 widgets  s SSH  c connect desktop  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
+		if m.ssh != nil {
+			help = "  SSH session active  esc close session  ctrl-c remote"
+		}
 	}
 	header := m.header()
 	footer := dimStyle.Render(help)
@@ -598,6 +624,7 @@ func (m Model) detailView() string {
 	if desktop := m.desktopForServer(m.cursor); desktop != nil {
 		labels = append(labels, "8 DESKTOP")
 	}
+	labels = append(labels, "9 SSH")
 	tabs := "  "
 	for i, label := range labels {
 		tabs += tabLabel(label, m.detailTab == i) + "  "
@@ -622,6 +649,8 @@ func (m Model) detailView() string {
 		body = acceleratorView(s)
 	case 7:
 		body = desktopView(m.desktopForServer(m.cursor), m.desktopFrames[m.cursor], m.desktopErrors[m.cursor], m.width)
+	case 8:
+		body = "  SSH SESSION\n\n" + m.sshText
 	}
 	return info + common + tabs + body
 }
@@ -653,6 +682,12 @@ func desktopView(desktop *config.Desktop, frame, errText string, width int) stri
 		port = 5900
 	}
 	return fmt.Sprintf("  DESKTOP\n\n  %-14s %s\n  %-14s %s\n  %-14s %d\n  %-14s %s\n\n  %s\n\n", "NAME", desktop.Name, "PLATFORM", desktop.Platform, "VNC PORT", port, "AGENT", desktop.AgentURL, dimStyle.Render("c connect  •  view-only by default  •  agent input requires confirmation"))
+}
+func (m Model) startSSH(index int) tea.Cmd {
+	return func() tea.Msg {
+		pane, err := startSSHPane(m.cfg.Servers[index])
+		return sshStartMsg{Pane: pane, Err: err}
+	}
 }
 func (m Model) loadDesktop(index int) tea.Cmd {
 	return func() tea.Msg {
