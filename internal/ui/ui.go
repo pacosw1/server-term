@@ -162,6 +162,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case tea.KeyMsg:
+		if m.detail && m.detailTab == 7 && isRemoteDesktopKey(msg.String()) {
+			return m, m.sendDesktopKey(m.cursor, msg.String())
+		}
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -316,6 +319,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.desktopFrames[msg.Index] = m.renderDesktopFrame(msg.Index, msg.Frame)
 		return m, m.readDesktopStream(msg.Index)
+	case tea.MouseMsg:
+		if m.detail && m.detailTab == 7 && msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonLeft || msg.Button == tea.MouseButtonRight) {
+			return m, m.sendDesktopClick(m.cursor, msg.X, msg.Y, msg.Button == tea.MouseButtonRight)
+		}
 	case desktopRefreshMsg:
 		if m.detail && m.detailTab == 7 && msg.Index == m.cursor {
 			return m, m.loadDesktop(msg.Index)
@@ -695,6 +702,55 @@ func (m Model) renderDesktopFrame(index int, b []byte) string {
 		return ""
 	}
 	return ansiFrame(img, cols)
+}
+func isRemoteDesktopKey(key string) bool {
+	if key == "q" || key == "ctrl+c" || key == "esc" || key == "tab" || key == "8" || key == "c" {
+		return false
+	}
+	return key != "" && key != "up" && key != "down" && key != "left" && key != "right" || key == "up" || key == "down" || key == "left" || key == "right"
+}
+func (m Model) sendDesktopKey(index int, combo string) tea.Cmd {
+	return func() tea.Msg {
+		d := m.desktopForServer(index)
+		if d == nil {
+			return nil
+		}
+		token := ""
+		if d.TokenEnv != "" {
+			token = os.Getenv(d.TokenEnv)
+		} else if d.TokenFile != "" {
+			b, err := os.ReadFile(config.ExpandHome(d.TokenFile))
+			if err != nil {
+				return nil
+			}
+			token = strings.TrimSpace(string(b))
+		}
+		_ = desktopclient.SendKey(context.Background(), *d, token, combo)
+		return nil
+	}
+}
+func (m Model) sendDesktopClick(index, x, y int, right bool) tea.Cmd {
+	return func() tea.Msg {
+		d := m.desktopForServer(index)
+		if d == nil {
+			return nil
+		}
+		token := ""
+		if d.TokenEnv != "" {
+			token = os.Getenv(d.TokenEnv)
+		} else if d.TokenFile != "" {
+			b, err := os.ReadFile(config.ExpandHome(d.TokenFile))
+			if err != nil {
+				return nil
+			}
+			token = strings.TrimSpace(string(b))
+		}
+		remoteX := max(0, min(1279, x*1280/max(1, m.width)))
+		remoteY := max(0, min(799, (y-10)*800/24))
+		_ = right
+		_ = desktopclient.Click(context.Background(), *d, token, remoteX, remoteY)
+		return nil
+	}
 }
 func (m Model) nextDesktop(index int) tea.Cmd {
 	d := m.desktopForServer(index)

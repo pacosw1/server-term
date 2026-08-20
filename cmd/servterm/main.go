@@ -62,7 +62,7 @@ func run() error {
 		}
 		return fmt.Errorf("unknown command %q", args[0])
 	}
-	p := tea.NewProgram(ui.New(cfg), tea.WithAltScreen())
+	p := tea.NewProgram(ui.New(cfg), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err = p.Run()
 	return err
 }
