@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +13,14 @@ import (
 	"github.com/franciscosainzwilliams/server-term/internal/config"
 	"github.com/franciscosainzwilliams/server-term/internal/ui"
 )
+
+func isCLICommand(command string) bool {
+	switch command {
+	case "status", "inspect", "history", "watch", "stream", "doctor", "widget":
+		return true
+	}
+	return false
+}
 
 var version = "dev"
 
@@ -48,6 +57,9 @@ func run() error {
 		return nil
 	}
 	if len(args) > 0 {
+		if isCLICommand(args[0]) {
+			return runCLI(context.Background(), cfg, args)
+		}
 		return fmt.Errorf("unknown command %q", args[0])
 	}
 	p := tea.NewProgram(ui.New(cfg), tea.WithAltScreen())

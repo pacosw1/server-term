@@ -1,0 +1,311 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/franciscosainzwilliams/server-term/internal/agentclient"
+	"github.com/franciscosainzwilliams/server-term/internal/config"
+	"github.com/franciscosainzwilliams/server-term/internal/metrics"
+	"github.com/franciscosainzwilliams/server-term/internal/widget"
+)
+
+type cliServer struct {
+	Name   string          `json:"name"`
+	Host   string          `json:"host"`
+	Online bool            `json:"online"`
+	Error  string          `json:"error,omitempty"`
+	Sample *metrics.Sample `json:"sample,omitempty"`
+}
+
+type cliResult struct {
+	SchemaVersion int         `json:"schema_version"`
+	Command       string      `json:"command"`
+	At            time.Time   `json:"at"`
+	Servers       []cliServer `json:"servers,omitempty"`
+}
+
+func runCLI(ctx context.Context, cfg config.Config, args []string) error {
+	command := args[0]
+	if command == "watch" || command == "stream" {
+		return cliWatch(ctx, cfg, args[1:])
+	}
+	fs := flag.NewFlagSet("servterm "+command, flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	jsonOut := fs.Bool("json", false, "emit machine-readable JSON")
+	host := fs.String("host", "", "server name (default: all servers)")
+	minutes := fs.Int("minutes", 60, "history window in minutes")
+	limit := fs.Int("limit", 60, "maximum samples")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if *host == "" && len(fs.Args()) > 0 {
+		*host = fs.Args()[0]
+	}
+	if command == "doctor" {
+		return cliDoctor(ctx, cfg, *jsonOut)
+	}
+	if command == "widget" {
+		return cliWidgets(ctx, cfg, *host, *jsonOut)
+	}
+	if command == "history" {
+		return cliHistory(ctx, cfg, *host, *minutes, *limit, *jsonOut)
+	}
+	if command != "status" && command != "inspect" {
+		return fmt.Errorf("unknown command %q", command)
+	}
+	result := collectLatest(ctx, cfg, *host)
+	if *jsonOut {
+		return printJSON(cliResult{SchemaVersion: 1, Command: command, At: time.Now(), Servers: result})
+	}
+	for _, item := range result {
+		if !item.Online {
+			fmt.Printf("%-20s OFFLINE  %s\n", item.Name, item.Error)
+			continue
+		}
+		s := item.Sample
+		fmt.Printf("%-20s online  CPU %5.1f%%  RAM %5.1f%%  power %s\n", item.Name, s.CPUPercent, metrics.Percent(s.MemTotal-s.MemAvailable, s.MemTotal), powerText(*s))
+		if command == "inspect" {
+			fmt.Printf("  host=%s os=%s kernel=%s uptime=%s latency=%s\n", s.Hostname, s.OS, s.Kernel, time.Duration(s.UptimeSeconds)*time.Second, s.Latency)
+		}
+	}
+	if anyOffline(result) {
+		return errors.New("one or more servers are offline")
+	}
+	return nil
+}
+
+func collectLatest(ctx context.Context, cfg config.Config, wanted string) []cliServer {
+	out := []cliServer{}
+	for _, server := range cfg.Servers {
+		if wanted != "" && server.Name != wanted {
+			continue
+		}
+		item := cliServer{Name: server.Name, Host: server.Address}
+		if server.AgentURL == "" {
+			item.Error = "server has no agent_url"
+			out = append(out, item)
+			continue
+		}
+		token, err := tokenFor(server)
+		if err == nil {
+			var samples []metrics.Sample
+			samples, err = agentclient.History(ctx, server.AgentURL, token, time.Minute*5, 1)
+			if len(samples) > 0 {
+				item.Sample = &samples[len(samples)-1]
+				item.Online = item.Sample.Online
+			}
+		}
+		if err != nil {
+			item.Error = err.Error()
+		}
+		if item.Sample != nil && item.Sample.Error != "" {
+			item.Error = item.Sample.Error
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func cliHistory(ctx context.Context, cfg config.Config, wanted string, minutes, limit int, jsonOut bool) error {
+	if minutes < 1 || limit < 1 {
+		return errors.New("minutes and limit must be positive")
+	}
+	for _, server := range cfg.Servers {
+		if wanted != "" && server.Name != wanted {
+			continue
+		}
+		token, err := tokenFor(server)
+		if err != nil {
+			return fmt.Errorf("%s: %w", server.Name, err)
+		}
+		samples, err := agentclient.History(ctx, server.AgentURL, token, time.Duration(minutes)*time.Minute, limit)
+		if err != nil {
+			return fmt.Errorf("%s: %w", server.Name, err)
+		}
+		if jsonOut {
+			if err := printJSON(map[string]any{"schema_version": 1, "command": "history", "server": server.Name, "samples": samples}); err != nil {
+				return err
+			}
+		} else {
+			for _, s := range samples {
+				fmt.Printf("%s\t%s\tCPU %.1f%%\tRAM %.1f%%\n", s.At.Format(time.RFC3339), server.Name, s.CPUPercent, metrics.Percent(s.MemTotal-s.MemAvailable, s.MemTotal))
+			}
+		}
+	}
+	return nil
+}
+
+func cliWatch(ctx context.Context, cfg config.Config, args []string) error {
+	fs := flag.NewFlagSet("servterm watch", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	host := fs.String("host", "", "server name")
+	jsonOut := fs.Bool("json", true, "emit JSON lines")
+	output := fs.String("output", "", "append JSON lines to this file instead of stdout")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *host == "" && len(fs.Args()) > 0 {
+		*host = fs.Args()[0]
+	}
+	var out io.Writer = os.Stdout
+	var file *os.File
+	if *output != "" {
+		var err error
+		file, err = os.OpenFile(config.ExpandHome(*output), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		out = file
+	}
+	for _, server := range cfg.Servers {
+		if *host != "" && server.Name != *host {
+			continue
+		}
+		token, err := tokenFor(server)
+		if err != nil {
+			return fmt.Errorf("%s: %w", server.Name, err)
+		}
+		stream, err := agentclient.Connect(ctx, server.AgentURL, token)
+		if err != nil {
+			return fmt.Errorf("%s: %w", server.Name, err)
+		}
+		defer stream.Close()
+		for {
+			wire, err := stream.Read(ctx)
+			if err != nil {
+				return err
+			}
+			if *jsonOut {
+				if err := writeJSON(out, map[string]any{"schema_version": 1, "server": server.Name, "sample": wire.Sample}); err != nil {
+					return err
+				}
+			} else {
+				fmt.Fprintf(out, "%s CPU %.1f%%\n", server.Name, wire.Sample.CPUPercent)
+			}
+		}
+	}
+	return errors.New("no matching server")
+}
+
+func cliDoctor(ctx context.Context, cfg config.Config, jsonOut bool) error {
+	result := collectLatest(ctx, cfg, "")
+	if jsonOut {
+		return printJSON(cliResult{SchemaVersion: 1, Command: "doctor", At: time.Now(), Servers: result})
+	}
+	for _, item := range result {
+		if item.Online {
+			fmt.Printf("OK   %-20s agent reachable\n", item.Name)
+		} else {
+			fmt.Printf("FAIL %-20s %s\n", item.Name, item.Error)
+		}
+	}
+	if anyOffline(result) {
+		return errors.New("doctor found failures")
+	}
+	return nil
+}
+
+func cliWidgets(ctx context.Context, cfg config.Config, wanted string, jsonOut bool) error {
+	if len(cfg.Widgets) == 0 {
+		return errors.New("no widgets configured")
+	}
+	failed := false
+	for _, provider := range cfg.Widgets {
+		if wanted != "" && provider.Name != wanted {
+			continue
+		}
+		token, err := tokenForWidget(provider)
+		if err != nil {
+			return fmt.Errorf("%s: %w", provider.Name, err)
+		}
+		snapshot := widget.FetchNVR(ctx, provider, token)
+		if snapshot.Error != "" {
+			failed = true
+		}
+		if jsonOut {
+			if err := printJSON(snapshot); err != nil {
+				return err
+			}
+		} else {
+			fmt.Printf("%-20s %s  streams %d/%d  CPU %.1f%%\n", snapshot.Name, map[bool]string{true: "healthy", false: "degraded"}[snapshot.Healthy], snapshot.LiveStreams, snapshot.TotalStreams, snapshot.CPUPercent)
+		}
+	}
+	if wanted != "" {
+		for _, provider := range cfg.Widgets {
+			if provider.Name == wanted {
+				if failed {
+					return errors.New("widget failed")
+				}
+				return nil
+			}
+		}
+		return errors.New("no matching widget")
+	}
+	if failed {
+		return errors.New("one or more widgets failed")
+	}
+	return nil
+}
+
+func tokenFor(server config.Server) (string, error) {
+	if server.TokenEnv != "" {
+		if token := os.Getenv(server.TokenEnv); token != "" {
+			return token, nil
+		}
+		return "", fmt.Errorf("token environment variable %s is empty", server.TokenEnv)
+	}
+	if server.TokenFile == "" {
+		return "", errors.New("token_file or token_env is required")
+	}
+	b, err := os.ReadFile(config.ExpandHome(server.TokenFile))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
+}
+func tokenForWidget(provider config.Widget) (string, error) {
+	if provider.TokenEnv != "" {
+		if token := os.Getenv(provider.TokenEnv); token != "" {
+			return token, nil
+		}
+		return "", fmt.Errorf("token environment variable %s is empty", provider.TokenEnv)
+	}
+	b, err := os.ReadFile(config.ExpandHome(provider.TokenFile))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
+}
+func printJSON(v any) error {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(v)
+}
+func writeJSON(out io.Writer, v any) error {
+	enc := json.NewEncoder(out)
+	enc.SetEscapeHTML(false)
+	return enc.Encode(v)
+}
+func anyOffline(items []cliServer) bool {
+	for _, item := range items {
+		if !item.Online {
+			return true
+		}
+	}
+	return false
+}
+func powerText(s metrics.Sample) string {
+	if !s.PowerKnown {
+		return "n/a"
+	}
+	return fmt.Sprintf("%.1fW", s.PowerWatts)
+}

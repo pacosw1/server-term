@@ -26,6 +26,49 @@ $EDITOR ~/.config/servterm/config.yaml
 ./bin/servterm
 ```
 
+## CLI and automation
+
+The same binary has non-interactive commands for agents and scripts. Put
+`--config PATH` before the command when using a non-default inventory:
+
+```sh
+servterm --config ~/.config/servterm/config.yaml status --json
+servterm inspect --host office-nvrd --json
+servterm history --host hetzner-32cpu --minutes 60 --limit 60 --json
+servterm doctor --json
+```
+
+`status`, `inspect`, `history`, and `doctor` return schema-versioned JSON with
+`--json`. A failing host produces a non-zero exit status. `watch` (also named
+`stream`) is a long-running newline-delimited JSON feed suitable for another
+agent or a supervisor:
+
+```sh
+servterm watch --host office-nvrd --output ~/.cache/servterm/office-nvrd.jsonl &
+```
+
+The stream process is intentionally foreground-friendly: use your service
+manager, `nohup`, or a shell supervisor to run it in the background and restart
+it. The output file is append-only and mode `0600`; each line has
+`schema_version`, `server`, and `sample` fields.
+
+### NVR widget provider
+
+Add a read-only NVR stats provider to the inventory:
+
+```yaml
+widgets:
+  - name: office-nvr
+    type: nvr
+    endpoint: http://127.0.0.1:8085
+    token_file: ~/.config/servterm/widgets/office-nvr
+```
+
+Query its normalized snapshot with `servterm widget --host office-nvr --json`.
+The provider calls only authenticated `GET /api/stats`; it does not execute
+plugin code or expose NVR control actions. It reports stream liveness, drops,
+disk/archive usage, and nvrd CPU/RSS.
+
 To try the checked-in example on Linux:
 
 ```sh

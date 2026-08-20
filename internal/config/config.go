@@ -17,6 +17,7 @@ type Config struct {
 	HistorySize     int           `yaml:"history_size"`
 	SSH             SSHConfig     `yaml:"ssh"`
 	Servers         []Server      `yaml:"servers"`
+	Widgets         []Widget      `yaml:"widgets,omitempty"`
 }
 
 type SSHConfig struct {
@@ -40,6 +41,15 @@ type Server struct {
 	AgentURL     string   `yaml:"agent_url,omitempty"`
 	TokenEnv     string   `yaml:"token_env,omitempty"`
 	TokenFile    string   `yaml:"token_file,omitempty"`
+}
+
+// Widget is a read-only external provider. NVR is the first supported type.
+type Widget struct {
+	Name      string `yaml:"name"`
+	Type      string `yaml:"type"`
+	Endpoint  string `yaml:"endpoint"`
+	TokenEnv  string `yaml:"token_env,omitempty"`
+	TokenFile string `yaml:"token_file,omitempty"`
 }
 
 func DefaultPath() string {
@@ -121,6 +131,18 @@ func (c Config) Validate() error {
 		}
 		if s.Port < 0 || s.Port > 65535 {
 			return fmt.Errorf("%s.port is invalid", p)
+		}
+	}
+	for i, w := range c.Widgets {
+		p := fmt.Sprintf("widgets[%d]", i)
+		if strings.TrimSpace(w.Name) == "" || strings.TrimSpace(w.Endpoint) == "" {
+			return fmt.Errorf("%s.name and endpoint are required", p)
+		}
+		if w.Type != "nvr" {
+			return fmt.Errorf("%s.type must be nvr", p)
+		}
+		if (w.TokenEnv == "") == (w.TokenFile == "") {
+			return fmt.Errorf("%s requires exactly one of token_env or token_file", p)
 		}
 	}
 	return nil
