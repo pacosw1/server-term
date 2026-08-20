@@ -173,6 +173,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.ssh != nil {
 			switch msg.String() {
+			case "x":
+				m.ssh.close()
+				m.ssh = nil
+				m.sshText = ""
+				return m, nil
 			case "tab":
 				maxTabs := 8
 				if m.desktopForServer(m.cursor) != nil {
@@ -219,6 +224,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor++
 			}
 		case "enter", "right", "l":
+			if m.detail && m.detailTab == 7 {
+				return m, m.startDesktop(m.cursor)
+			}
+			if m.detail && m.detailTab == 8 {
+				return m, m.startSSH(m.cursor)
+			}
 			m.detail = true
 		case "tab":
 			if m.detail {
@@ -228,12 +239,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.detailTab = (m.detailTab + 1) % maxTabs
 				m.detailScroll = 0
-				if m.detailTab == 7 {
-					return m, m.startDesktop(m.cursor)
-				}
-				if m.detailTab == 8 {
-					return m, m.startSSH(m.cursor)
-				}
 			}
 		case "1":
 			if m.detail {
@@ -254,13 +259,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.detail && m.desktopForServer(m.cursor) != nil {
 				m.detailTab = 7
 				m.detailScroll = 0
-				return m, m.startDesktop(m.cursor)
 			}
 		case "9":
 			if m.detail {
 				m.detailTab = 8
 				m.detailScroll = 0
-				return m, m.startSSH(m.cursor)
 			}
 		case "c":
 			if m.detail && m.detailTab == 7 {
@@ -271,16 +274,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detail = true
 				m.detailTab = 8
 				m.sshText = ""
-				return m, m.startSSH(m.cursor)
-			}
-			if m.detailTab != 7 {
-				pane, err := startSSHPane(m.cfg.Servers[m.cursor])
-				if err != nil {
-					return m, nil
-				}
-				m.ssh = pane
+			} else if m.detailTab != 7 {
+				m.detailTab = 8
 				m.sshText = ""
-				return m, pane.read()
+			}
+		case "x":
+			if m.detailTab == 7 {
+				if s := m.desktopStreams[m.cursor]; s != nil {
+					s.Close()
+				}
+				m.desktopStreams[m.cursor] = nil
+				m.desktopFrames[m.cursor] = ""
+				m.desktopErrors[m.cursor] = ""
+			}
+			if m.detailTab == 8 && m.ssh != nil {
+				m.ssh.close()
+				m.ssh = nil
+				m.sshText = ""
 			}
 		case "[":
 			if m.detail && m.rangeIndex > 0 {
@@ -667,6 +677,9 @@ func (m Model) detailView() string {
 		body = desktopView(m.desktopForServer(m.cursor), m.desktopFrames[m.cursor], m.desktopErrors[m.cursor], m.width)
 	case 8:
 		body = "  SSH SESSION\n\n" + m.sshText
+		if m.ssh == nil && m.sshText == "" {
+			body += "  Press Enter to connect.\n  x disconnects and keeps the tab open.\n"
+		}
 	}
 	return info + common + tabs + body
 }
@@ -689,6 +702,9 @@ func desktopView(desktop *config.Desktop, frame, errText string, width int) stri
 	}
 	if errText != "" {
 		return "  DESKTOP\n\n  " + errStyle.Render("screenshot unavailable: "+errText) + "\n\n  Press 8 to retry.\n\n"
+	}
+	if frame == "" {
+		return fmt.Sprintf("  DESKTOP\n\n  %-14s %s\n  %-14s %s\n\n  Press Enter to connect.\n  x disconnects and keeps the tab open.\n\n", "NAME", desktop.Name, "PLATFORM", desktop.Platform)
 	}
 	if frame != "" {
 		return "  DESKTOP  " + desktop.Name + "\n\n" + frame + "\n"
