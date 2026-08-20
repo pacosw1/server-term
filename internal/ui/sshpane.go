@@ -9,16 +9,18 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/charmbracelet/x/vt"
 	"github.com/creack/pty"
 	"github.com/franciscosainzwilliams/server-term/internal/config"
 )
 
 type sshPane struct {
-	file   *os.File
-	cmd    *exec.Cmd
-	output chan sshOutputMsg
-	mu     sync.Mutex
-	closed bool
+	file     *os.File
+	cmd      *exec.Cmd
+	output   chan sshOutputMsg
+	emulator *vt.Emulator
+	mu       sync.Mutex
+	closed   bool
 }
 type sshOutputMsg struct {
 	Data string
@@ -43,7 +45,7 @@ func startSSHPane(server config.Server) (*sshPane, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &sshPane{file: file, cmd: cmd, output: make(chan sshOutputMsg, 16)}
+	s := &sshPane{file: file, cmd: cmd, output: make(chan sshOutputMsg, 16), emulator: vt.NewEmulator(120, 40)}
 	go func() {
 		buf := make([]byte, 8192)
 		for {
@@ -81,8 +83,14 @@ func (s *sshPane) write(data []byte) error {
 	_, err := s.file.Write(data)
 	return err
 }
+
 func (s *sshPane) resize(cols, rows int) {
 	_ = pty.Setsize(s.file, &pty.Winsize{Cols: uint16(max(1, cols)), Rows: uint16(max(1, rows))})
+	s.emulator.Resize(max(1, cols), max(1, rows))
+}
+func (s *sshPane) feed(data string) string {
+	_, _ = s.emulator.WriteString(data)
+	return s.emulator.Render()
 }
 func (s *sshPane) read() tea.Cmd {
 	return func() tea.Msg {

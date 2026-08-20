@@ -172,7 +172,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyMsg:
 		if m.ssh != nil {
-			if msg.String() == "esc" {
+			switch msg.String() {
+			case "tab":
+				maxTabs := 8
+				if m.desktopForServer(m.cursor) != nil {
+					maxTabs = 9
+				}
+				m.detailTab = (m.detailTab + 1) % maxTabs
+				m.detailScroll = 0
+				return m, nil
+			case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+				n := int(msg.Runes[0] - '1')
+				if n < 8 || (n == 8) {
+					if n == 7 && m.desktopForServer(m.cursor) == nil {
+						return m, nil
+					}
+					m.detailTab = n
+					m.detailScroll = 0
+					return m, nil
+				}
+			case "esc":
 				m.ssh.close()
 				m.ssh = nil
 				m.sshText = ""
@@ -372,11 +391,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.desktopFrames[msg.Index] = m.renderDesktopFrame(msg.Index, msg.Frame)
 		return m, m.readDesktopStream(msg.Index)
 	case sshOutputMsg:
-		if msg.Data != "" {
-			m.sshText += msg.Data
-			if len(m.sshText) > 50000 {
-				m.sshText = m.sshText[len(m.sshText)-50000:]
-			}
+		if msg.Data != "" && m.ssh != nil {
+			m.sshText = m.ssh.feed(msg.Data)
 		}
 		if msg.Err != nil {
 			if m.ssh != nil {
