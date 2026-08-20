@@ -67,6 +67,8 @@ type Desktop struct {
 	SSHUser   string `yaml:"ssh_user,omitempty"`
 	SSHPort   int    `yaml:"ssh_port,omitempty"`
 	Backend   string `yaml:"backend,omitempty"`
+	RefreshFPS int `yaml:"refresh_fps,omitempty"`
+	Quality string `yaml:"quality,omitempty"`
 }
 
 func DefaultPath() string {
@@ -178,6 +180,8 @@ func (c Config) Validate() error {
 		if d.SSHPort < 0 || d.SSHPort > 65535 || d.VNCPort < 0 || d.VNCPort > 65535 {
 			return fmt.Errorf("%s.ssh_port is invalid", p)
 		}
+		if d.RefreshFPS < 0 || d.RefreshFPS > 60 { return fmt.Errorf("%s.refresh_fps must be between 0 and 60", p) }
+		if d.Quality != "" && d.Quality != "speed" && d.Quality != "balanced" && d.Quality != "quality" { return fmt.Errorf("%s.quality must be speed, balanced, or quality", p) }
 	}
 	return nil
 }

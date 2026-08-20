@@ -274,6 +274,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.desktopErrors[msg.Index] = ""
 			m.desktopFrames[msg.Index] = msg.Frame
+			if m.detail && m.detailTab == 7 && msg.Index == m.cursor {
+				return m, m.nextDesktop(msg.Index)
+			}
+		}
+	case desktopRefreshMsg:
+		if m.detail && m.detailTab == 7 && msg.Index == m.cursor {
+			return m, m.loadDesktop(msg.Index)
 		}
 	case frameMsg:
 		target := time.Now().Add(-time.Second)
@@ -580,9 +587,34 @@ func (m Model) loadDesktop(index int) tea.Cmd {
 		if err != nil {
 			return desktopShotMsg{Index: index, Err: err}
 		}
-		return desktopShotMsg{Index: index, Frame: ansiFrame(img, max(40, min(110, m.width-4)))}
+		cols := max(40, min(110, m.width-4))
+		switch d.Quality {
+		case "speed":
+			cols = max(40, min(80, m.width-4))
+		case "quality":
+			cols = max(40, min(180, m.width-4))
+		}
+		if inline := emitDesktopImage(b, cols, 24); inline != "" {
+			return desktopShotMsg{Index: index, Frame: inline}
+		}
+		return desktopShotMsg{Index: index, Frame: ansiFrame(img, cols)}
 	}
 }
+func (m Model) nextDesktop(index int) tea.Cmd {
+	d := m.desktopForServer(index)
+	fps := 60
+	if d != nil && d.RefreshFPS > 0 {
+		fps = d.RefreshFPS
+	}
+	if fps > 60 {
+		fps = 60
+	}
+	interval := time.Second / time.Duration(fps)
+	return tea.Tick(interval, func(time.Time) tea.Msg { return desktopRefreshMsg{Index: index} })
+}
+
+type desktopRefreshMsg struct{ Index int }
+
 func ansiFrame(src image.Image, maxCols int) string {
 	b := src.Bounds()
 	scale := 1.0
