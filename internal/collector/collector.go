@@ -114,7 +114,13 @@ awk '/^cpu[0-9]+ /{$1=""; sub(/^ /,""); print "core\t" $0}' /proc/stat
 awk '/^processor/{n++} END{print "cores\t" n+0}' /proc/cpuinfo
 awk '{print "load\t" $1, $2, $3}' /proc/loadavg
 awk '/^MemTotal:/{print "mem_total\t" $2} /^MemAvailable:/{print "mem_available\t" $2} /^SwapTotal:/{print "swap_total\t" $2} /^SwapFree:/{print "swap_free\t" $2}' /proc/meminfo
-awk -F'[: ]+' 'NR>2 && $2!="lo" {rx+=$3; tx+=$11} END{print "net\t" rx+0, tx+0}' /proc/net/dev
+awk -F'[: ]+' 'NR>2 && $2!="lo" {rx+=$3; re+=$5; rd+=$6; tx+=$11; te+=$13; td+=$14} END{print "net\t" rx+0, tx+0; print "net_errors\t" re+0,te+0,rd+0,td+0}' /proc/net/dev
+iface=$(awk '$2=="00000000" {print $1; exit}' /proc/net/route)
+[ -n "$iface" ] || iface=unknown
+kind=ethernet; [ -d "/sys/class/net/$iface/wireless" ] && kind=wifi
+speed=0; [ -r "/sys/class/net/$iface/speed" ] && speed=$(cat "/sys/class/net/$iface/speed" 2>/dev/null || echo 0)
+case "$speed" in ''|*[!0-9-]*) speed=0;; esac
+printf 'net_info\t%s %s %s\n' "$iface" "$kind" "$speed"
 for p in cpu memory io; do f="/proc/pressure/$p"; [ -r "$f" ] && awk -v p="$p" '/^some /{for(i=1;i<=NF;i++)if($i~/^avg10=/){split($i,a,"="); print "pressure_" p "\t" a[2]}}' "$f"; done
 energy_uj=$(for f in /sys/class/powercap/intel-rapl*/energy_uj /sys/class/powercap/intel-rapl:*/*/energy_uj; do [ -r "$f" ] && cat "$f"; done | awk '{sum+=$1} END{if(NR) printf "%.0f",sum}')
 [ -n "$energy_uj" ] && printf 'energy_uj\t%s\n' "$energy_uj"
@@ -178,7 +184,14 @@ printf 'mem_total_bytes\t%s\nmem_available_bytes\t%s\n' "$mem_total" "$mem_avail
 sysctl -n vm.swapusage | awk '
 function bytes(v, u){u=substr(v,length(v),1);v=substr(v,1,length(v)-1)+0;if(u=="K")return v*1024;if(u=="M")return v*1048576;if(u=="G")return v*1073741824;return v}
 {for(i=1;i<=NF;i++){if($i=="total")t=bytes($(i+2));if($i=="free")f=bytes($(i+2))}} END{printf "swap_total_bytes\t%.0f\nswap_free_bytes\t%.0f\n",t,f}'
-netstat -ibn | awk 'NR>1 && $1!="lo0" && $3~/^<Link#/ {rx+=$7;tx+=$10} END{print "net\t" rx+0,tx+0}'
+netstat -ibn | awk 'NR>1 && $1!="lo0" && $3~/^<Link#/ {rx+=$7;tx+=$10;re+=$9;te+=$12;rd+=$13;td+=$14} END{print "net\t" rx+0,tx+0; print "net_errors\t" re+0,te+0,rd+0,td+0}'
+iface=$(route -n get default 2>/dev/null | awk '/interface:/{print $2;exit}')
+[ -n "$iface" ] || iface=unknown
+kind=ethernet
+networksetup -listallhardwareports 2>/dev/null | awk -v i="$iface" '/Hardware Port:/{p=$0} /Device:/{if($2==i && p~/Wi-Fi|AirPort/){print "wifi";exit}}' | grep -q wifi && kind=wifi
+speed=$(ifconfig "$iface" 2>/dev/null | sed -n 's/.*media:.*(\([0-9][0-9]*\)base.*/\1/p' | head -1)
+[ -n "$speed" ] || speed=0
+printf 'net_info\t%s %s %s\n' "$iface" "$kind" "$speed"
 pmset -g batt 2>/dev/null | awk '/InternalBattery|%/ {if (match($0,/[0-9]+%/)) {v=substr($0,RSTART,RLENGTH);gsub(/%/,"",v);print "battery_percent\t" v; if ($0 ~ /charging|charged/) print "battery_charging\ttrue"; exit}}'
 smart_battery=$(ioreg -rn AppleSmartBattery -l 2>/dev/null || true)
 printf '%s\n' "$smart_battery" | awk '

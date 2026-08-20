@@ -567,7 +567,28 @@ func memoryView(s metrics.Sample, h []metrics.Sample) string {
 	return fmt.Sprintf("  MEMORY  %s %s  %s / %s\n  HISTORY %s\n  SWAP    %s %s  %s / %s\n  PRESSURE %.2f%%\n\n", bar(metrics.Percent(used, s.MemTotal), 32), percentText(metrics.Percent(used, s.MemTotal)), bytes(used), bytes(s.MemTotal), spark(h, func(x metrics.Sample) float64 { return metrics.Percent(x.MemTotal-x.MemAvailable, x.MemTotal) }), bar(metrics.Percent(swap, s.SwapTotal), 32), percentText(metrics.Percent(swap, s.SwapTotal)), bytes(swap), bytes(s.SwapTotal), s.PressureMemory)
 }
 func networkView(s metrics.Sample, h []metrics.Sample) string {
-	return fmt.Sprintf("  LIVE THROUGHPUT\n  DOWNLOAD  %10s/s  %s\n  UPLOAD    %10s/s  %s\n  RX TOTAL  %s\n  TX TOTAL  %s\n\n", bytes(uint64(s.NetRxRate)), spark(h, func(x metrics.Sample) float64 { return math.Min(100, x.NetRxRate/1024/1024) }), bytes(uint64(s.NetTxRate)), spark(h, func(x metrics.Sample) float64 { return math.Min(100, x.NetTxRate/1024/1024) }), bytes(s.NetRx), bytes(s.NetTx))
+	iface := s.NetworkInterface
+	if iface == "" {
+		iface = "unknown interface"
+	}
+	kind := s.NetworkType
+	if kind == "" {
+		kind = "unknown"
+	}
+	link := "speed unavailable"
+	if s.NetworkLinkMbps > 0 {
+		link = fmt.Sprintf("%d Mbps", s.NetworkLinkMbps)
+	}
+	linkStyle := okStyle
+	if s.NetworkLinkMbps > 0 && s.NetworkLinkMbps < 100 {
+		linkStyle = warnStyle
+	}
+	errText := fmt.Sprintf("errors RX %d / TX %d   drops RX %d / TX %d", s.NetRxErrors, s.NetTxErrors, s.NetRxDrops, s.NetTxDrops)
+	errStyle := dimStyle
+	if s.NetRxErrors+s.NetTxErrors+s.NetRxDrops+s.NetTxDrops > 0 {
+		errStyle = errStyle.Bold(true)
+	}
+	return fmt.Sprintf("  CONNECTION  %s  %s  %s\n  LINK        %s\n  LIVE THROUGHPUT\n  DOWNLOAD  %10s/s  %s\n  UPLOAD    %10s/s  %s\n  RX TOTAL  %s\n  TX TOTAL  %s\n  %s\n\n", titleStyle.Render(iface), dimStyle.Render(kind), linkStyle.Render(link), linkStyle.Render(link), bytes(uint64(s.NetRxRate)), spark(h, func(x metrics.Sample) float64 { return math.Min(100, x.NetRxRate/1024/1024) }), bytes(uint64(s.NetTxRate)), spark(h, func(x metrics.Sample) float64 { return math.Min(100, x.NetTxRate/1024/1024) }), bytes(s.NetRx), bytes(s.NetTx), errStyle.Render(errText))
 }
 func runnerView(s metrics.Sample, h []metrics.Sample, width int) string {
 	jobs := "jobs"

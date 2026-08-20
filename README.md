@@ -14,6 +14,13 @@ For high-fidelity mode, a small `servterm-agent` samples once per second, stores
 - Persistent agent mode with SQLite history and direct Tailscale streaming
 - Per-core CPU grid, top-process view, and sanitized per-job GitHub runner accounting
 
+The Network detail tab also reports the active/default interface, connection
+type (Ethernet or Wi-Fi where the OS exposes it), negotiated link speed, live
+throughput, and cumulative RX/TX errors and drops. It deliberately does not run
+an automatic Internet speed test: that would generate traffic and distort the
+same throughput measurements. An explicit on-demand speed-test command can be
+added separately.
+
 ## Build and run
 
 Go 1.24 or newer is required to build. The resulting binary has no Go runtime dependency.

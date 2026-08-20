@@ -41,21 +41,24 @@ type RunnerJob struct {
 	CPU                                                            float64
 }
 type Sample struct {
-	At                                          time.Time
-	Online                                      bool
-	Error                                       string
-	Latency                                     time.Duration
-	Hostname, OS, Kernel                        string
-	UptimeSeconds                               float64
-	CPUTotal, CPUIdle                           uint64
-	CPUPercent                                  float64
-	CoreTotal, CoreIdle                         []uint64
-	CorePercent                                 []float64
-	Cores                                       int
-	Load1, Load5, Load15                        float64
-	MemTotal, MemAvailable, SwapTotal, SwapFree uint64
-	NetRx, NetTx                                uint64
-	NetRxRate, NetTxRate                        float64
+	At                                               time.Time
+	Online                                           bool
+	Error                                            string
+	Latency                                          time.Duration
+	Hostname, OS, Kernel                             string
+	UptimeSeconds                                    float64
+	CPUTotal, CPUIdle                                uint64
+	CPUPercent                                       float64
+	CoreTotal, CoreIdle                              []uint64
+	CorePercent                                      []float64
+	Cores                                            int
+	Load1, Load5, Load15                             float64
+	MemTotal, MemAvailable, SwapTotal, SwapFree      uint64
+	NetRx, NetTx                                     uint64
+	NetRxRate, NetTxRate                             float64
+	NetworkInterface, NetworkType                    string
+	NetworkLinkMbps                                  int
+	NetRxErrors, NetTxErrors, NetRxDrops, NetTxDrops uint64
 	// EnergyMicrojoules is a monotonically increasing platform energy counter
 	// (when available). PowerWatts is either a direct platform reading or a
 	// value derived from two energy samples.

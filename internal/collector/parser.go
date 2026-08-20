@@ -79,6 +79,16 @@ func Parse(raw string) (metrics.Sample, error) {
 			if len(p) == 2 {
 				s.NetRx, s.NetTx = u64(p[0]), u64(p[1])
 			}
+		case "net_info":
+			p := strings.Fields(val)
+			if len(p) >= 3 {
+				s.NetworkInterface, s.NetworkType, s.NetworkLinkMbps = p[0], p[1], int(u64(p[2]))
+			}
+		case "net_errors":
+			p := fieldsU64(val)
+			if len(p) >= 4 {
+				s.NetRxErrors, s.NetTxErrors, s.NetRxDrops, s.NetTxDrops = p[0], p[1], p[2], p[3]
+			}
 		case "energy_uj":
 			s.EnergyMicrojoules = u64(val)
 		case "power_watts":
