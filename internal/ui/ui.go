@@ -88,6 +88,8 @@ type Model struct {
 	desktopFrames  map[int]string
 	desktopErrors  map[int]string
 	desktopStreams map[int]*desktopclient.Stream
+	ssh            *sshPane
+	sshText        string
 	width, height  int
 	collecting     bool
 	pending        int
@@ -161,7 +163,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		if m.ssh != nil {
+			m.ssh.resize(msg.Width, max(1, msg.Height-4))
+		}
 	case tea.KeyMsg:
+		if m.ssh != nil {
+			if msg.String() == "esc" {
+				m.ssh.close()
+				m.ssh = nil
+				m.sshText = ""
+				return m, nil
+			}
+			_ = m.ssh.write(keyBytes(msg))
+			return m, nil
+		}
 		if m.detail && m.detailTab == 7 && isRemoteDesktopKey(msg.String()) {
 			return m, m.sendDesktopKey(m.cursor, msg.String())
 		}
@@ -221,7 +236,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "s":
 			if !m.detail || m.detailTab != 7 {
-				return m, openSSH(m.cfg.Servers[m.cursor])
+				pane, err := startSSHPane(m.cfg.Servers[m.cursor])
+				if err != nil {
+					return m, nil
+				}
+				m.ssh = pane
+				m.sshText = ""
+				return m, pane.read()
 			}
 		case "[":
 			if m.detail && m.rangeIndex > 0 {
@@ -323,6 +344,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.desktopFrames[msg.Index] = m.renderDesktopFrame(msg.Index, msg.Frame)
 		return m, m.readDesktopStream(msg.Index)
+	case sshOutputMsg:
+		if msg.Data != "" {
+			m.sshText += msg.Data
+			if len(m.sshText) > 50000 {
+				m.sshText = m.sshText[len(m.sshText)-50000:]
+			}
+		}
+		if msg.Err != nil {
+			if m.ssh != nil {
+				m.ssh.close()
+				m.ssh = nil
+			}
+			return m, nil
+		}
+		if m.ssh != nil {
+			return m, m.ssh.read()
+		}
 	case tea.MouseMsg:
 		if m.detail && m.detailTab == 7 && msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonLeft || msg.Button == tea.MouseButtonRight) {
 			return m, m.sendDesktopClick(m.cursor, msg.X, msg.Y, msg.Button == tea.MouseButtonRight)
@@ -446,18 +484,22 @@ func (m Model) View() string {
 		return "Starting servterm..."
 	}
 	var body string
-	if m.detail {
+	if m.ssh != nil {
+		body = "  SSH SESSION\n\n" + m.sshText
+	} else if m.detail {
 		body = m.detailView()
 	} else {
 		body = m.overview()
 	}
 	help := "  ↑/↓ navigate  enter details  s SSH  esc overview  r refresh  q quit"
-	if m.detail {
+	if m.ssh != nil {
+		help = "  SSH session active  esc close session  ctrl-c remote"
+	} else if m.detail {
 		help = "  tab / 1..8 widgets  s SSH  c connect desktop  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
 	}
 	header := m.header()
 	footer := dimStyle.Render(help)
-	if m.detail {
+	if m.ssh != nil || m.detail {
 		available := max(1, m.height-lipgloss.Height(header)-lipgloss.Height(footer))
 		body = clipLines(body, m.detailScroll, available)
 	}
