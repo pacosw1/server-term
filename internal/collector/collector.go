@@ -184,7 +184,7 @@ printf 'mem_total_bytes\t%s\nmem_available_bytes\t%s\n' "$mem_total" "$mem_avail
 sysctl -n vm.swapusage | awk '
 function bytes(v, u){u=substr(v,length(v),1);v=substr(v,1,length(v)-1)+0;if(u=="K")return v*1024;if(u=="M")return v*1048576;if(u=="G")return v*1073741824;return v}
 {for(i=1;i<=NF;i++){if($i=="total")t=bytes($(i+2));if($i=="free")f=bytes($(i+2))}} END{printf "swap_total_bytes\t%.0f\nswap_free_bytes\t%.0f\n",t,f}'
-netstat -ibn | awk 'NR>1 && $1!="lo0" && $3~/^<Link#/ {rx+=$7;tx+=$10;re+=$9;te+=$12;rd+=$13;td+=$14} END{print "net\t" rx+0,tx+0; print "net_errors\t" re+0,te+0,rd+0,td+0}'
+netstat -ibn | awk 'NR>1 && $1!="lo0" && $3~/^<Link#/ {rx+=$7;tx+=$10;re+=$6;te+=$9} END{print "net\t" rx+0,tx+0; print "net_errors\t" re+0,te+0,0,0}'
 iface=$(route -n get default 2>/dev/null | awk '/interface:/{print $2;exit}')
 [ -n "$iface" ] || iface=unknown
 kind=ethernet
