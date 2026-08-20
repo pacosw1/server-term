@@ -11,7 +11,6 @@
 <string>--token-file</string><string>__STATE__/desktop-agent.token</string>
 <string>--vnc-host</string><string>127.0.0.1</string>
 <string>--vnc-port</string><string>5900</string>
-<string>--vnc-password-file</string><string>__STATE__/desktop-vnc.password</string>
 </array>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>

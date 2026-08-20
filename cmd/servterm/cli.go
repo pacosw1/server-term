@@ -268,8 +268,11 @@ func cliDesktops(ctx context.Context, cfg config.Config, args []string, jsonOut 
 	}
 	action := args[0]
 	wanted := ""
-	if len(args) > 1 {
+	if len(args) > 1 && args[1] != "--json" {
 		wanted = args[1]
+	}
+	if len(args) > 1 && args[1] == "--json" {
+		jsonOut = true
 	}
 	if action != "list" && action != "doctor" && action != "connect" {
 		if action != "screenshot" {
