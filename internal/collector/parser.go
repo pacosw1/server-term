@@ -79,6 +79,16 @@ func Parse(raw string) (metrics.Sample, error) {
 			if len(p) == 2 {
 				s.NetRx, s.NetTx = u64(p[0]), u64(p[1])
 			}
+		case "energy_uj":
+			s.EnergyMicrojoules = u64(val)
+		case "power_watts":
+			s.PowerWatts = f64(val)
+			s.PowerKnown = s.PowerWatts >= 0
+		case "battery_percent":
+			s.BatteryPercent = f64(val)
+			s.BatteryKnown = true
+		case "battery_charging":
+			s.BatteryCharging = strings.TrimSpace(val) == "true"
 		case "pressure_cpu":
 			s.PressureCPU = f64(val)
 		case "pressure_memory":

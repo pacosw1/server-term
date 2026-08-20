@@ -56,13 +56,21 @@ type Sample struct {
 	MemTotal, MemAvailable, SwapTotal, SwapFree uint64
 	NetRx, NetTx                                uint64
 	NetRxRate, NetTxRate                        float64
-	PressureCPU, PressureMemory, PressureIO     float64
-	Disks                                       []Disk
-	Devices                                     []BlockDevice
-	Accelerators                                []Accelerator
-	Processes                                   []Process
-	Runners                                     RunnerStats
-	RunnerJobs                                  []RunnerJob
+	// EnergyMicrojoules is a monotonically increasing platform energy counter
+	// (when available). PowerWatts is either a direct platform reading or a
+	// value derived from two energy samples.
+	EnergyMicrojoules                       uint64
+	PowerWatts                              float64
+	PowerKnown                              bool
+	BatteryPercent                          float64
+	BatteryKnown, BatteryCharging           bool
+	PressureCPU, PressureMemory, PressureIO float64
+	Disks                                   []Disk
+	Devices                                 []BlockDevice
+	Accelerators                            []Accelerator
+	Processes                               []Process
+	Runners                                 RunnerStats
+	RunnerJobs                              []RunnerJob
 }
 
 // WireSample is the versioned payload exchanged between agents and the TUI.
@@ -116,6 +124,13 @@ func Derive(previous *Sample, current *Sample) {
 	}
 	if current.NetTx >= previous.NetTx {
 		current.NetTxRate = float64(current.NetTx-previous.NetTx) / dt
+	}
+	if current.EnergyMicrojoules >= previous.EnergyMicrojoules {
+		delta := current.EnergyMicrojoules - previous.EnergyMicrojoules
+		if delta > 0 {
+			current.PowerWatts = float64(delta) / 1_000_000 / dt
+			current.PowerKnown = true
+		}
 	}
 	oldJobs := map[int]RunnerJob{}
 	for _, job := range previous.RunnerJobs {

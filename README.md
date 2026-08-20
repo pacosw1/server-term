@@ -7,7 +7,7 @@ For high-fidelity mode, a small `servterm-agent` samples once per second, stores
 ## What it shows
 
 - Fleet overview: online state, SSH latency, location, CPU, memory, root disk, network throughput, and CPU history
-- Server detail: host/OS/kernel, uptime, cores, load, memory/swap, Linux PSI pressure, filesystems, and SSD/HDD devices
+- Server detail: host/OS/kernel, uptime, cores, load, memory/swap, platform pressure, power/battery telemetry, filesystems, and SSD/HDD devices
 - Live, independently timed collection so one offline server does not block the fleet
 - Responsive compact layout for narrow terminals
 - Local transport for monitoring the Linux host running `servterm`
@@ -41,7 +41,7 @@ refresh_interval: 3s
 history_size: 60
 ssh:
   connect_timeout: 3s
-  command_timeout: 8s
+  command_timeout: 15s
   strict_host_key_checking: true
 servers:
   - name: web-01

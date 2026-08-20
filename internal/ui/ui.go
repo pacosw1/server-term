@@ -497,7 +497,25 @@ func cpuView(s metrics.Sample, width int) string {
 		barWidth = 18
 	}
 	usedCores := s.CPUPercent / 100 * float64(s.Cores)
-	out := fmt.Sprintf("  TOTAL CPU  %s %5.1f%%   (~%.1f/%d cores)\n  LOAD       %.2f / %.2f / %.2f   PRESSURE %.2f%%\n", bar(s.CPUPercent, barWidth), s.CPUPercent, usedCores, s.Cores, s.Load1, s.Load5, s.Load15, s.PressureCPU)
+	pressure := "n/a"
+	if s.PressureCPU > 0 || s.PressureMemory > 0 || s.PressureIO > 0 {
+		pressure = fmt.Sprintf("%.2f%%", max(s.PressureCPU, max(s.PressureMemory, s.PressureIO)))
+	}
+	power := "n/a"
+	if s.PowerKnown {
+		power = fmt.Sprintf("%.1f W", s.PowerWatts)
+	}
+	if s.BatteryKnown {
+		state := "on battery"
+		if s.BatteryCharging {
+			state = "charging"
+		}
+		power = fmt.Sprintf("%s  %.0f%%", power, s.BatteryPercent)
+		if s.PowerKnown {
+			power += "  " + state
+		}
+	}
+	out := fmt.Sprintf("  TOTAL CPU  %s %5.1f%%   (~%.1f/%d cores)\n  LOAD       %.2f / %.2f / %.2f   PRESSURE %s   POWER %s\n", bar(s.CPUPercent, barWidth), s.CPUPercent, usedCores, s.Cores, s.Load1, s.Load5, s.Load15, pressure, power)
 	if len(s.CorePercent) == 0 {
 		return out + "\n  Per-core breakdown is unavailable from this macOS sampler.\n\n"
 	}
@@ -681,7 +699,10 @@ func statStrip(s metrics.Sample) string {
 	memPart := usageText(mem) + " " + bytes(s.MemTotal-s.MemAvailable) + "/" + bytes(s.MemTotal)
 	diskPart := usageText(disk)
 	pressure := max(s.PressureCPU, max(s.PressureMemory, s.PressureIO))
-	pressurePart := usageText(pressure)
+	pressurePart := "n/a"
+	if pressure > 0 {
+		pressurePart = usageText(pressure)
+	}
 	line1 := titleStyle.Render("SERVER HEALTH") + "   CPU " + cpuPart + "   MEM " + memPart
 	line2 := "DISK / " + diskPart + "   NET ↓" + bytes(uint64(s.NetRxRate)) + "/s ↑" + bytes(uint64(s.NetTxRate)) + "/s   PRESSURE " + pressurePart
 	return lipgloss.NewStyle().MarginLeft(2).MarginBottom(1).Border(lipgloss.RoundedBorder()).BorderForeground(panel).Padding(0, 1).Render(line1+"\n"+line2) + "\n"

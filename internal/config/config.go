@@ -74,7 +74,9 @@ func Load(path string) (Config, error) {
 		c.SSH.ConnectTimeoutRaw = "3s"
 	}
 	if c.SSH.CommandTimeoutRaw == "" {
-		c.SSH.CommandTimeoutRaw = "8s"
+		// Platform samplers such as top, ioreg and process enumeration can
+		// legitimately take several seconds on a busy host.
+		c.SSH.CommandTimeoutRaw = "15s"
 	}
 	if c.RefreshInterval, err = time.ParseDuration(c.RefreshRaw); err != nil {
 		return c, fmt.Errorf("refresh_interval: %w", err)

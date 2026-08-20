@@ -74,7 +74,7 @@ const exampleConfig = `refresh_interval: 3s
 history_size: 60
 ssh:
   connect_timeout: 3s
-  command_timeout: 8s
+  command_timeout: 15s
   strict_host_key_checking: true
 servers:
   - name: this-machine

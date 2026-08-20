@@ -116,6 +116,17 @@ awk '{print "load\t" $1, $2, $3}' /proc/loadavg
 awk '/^MemTotal:/{print "mem_total\t" $2} /^MemAvailable:/{print "mem_available\t" $2} /^SwapTotal:/{print "swap_total\t" $2} /^SwapFree:/{print "swap_free\t" $2}' /proc/meminfo
 awk -F'[: ]+' 'NR>2 && $2!="lo" {rx+=$3; tx+=$11} END{print "net\t" rx+0, tx+0}' /proc/net/dev
 for p in cpu memory io; do f="/proc/pressure/$p"; [ -r "$f" ] && awk -v p="$p" '/^some /{for(i=1;i<=NF;i++)if($i~/^avg10=/){split($i,a,"="); print "pressure_" p "\t" a[2]}}' "$f"; done
+energy_uj=$(for f in /sys/class/powercap/intel-rapl*/energy_uj /sys/class/powercap/intel-rapl:*/*/energy_uj; do [ -r "$f" ] && cat "$f"; done | awk '{sum+=$1} END{if(NR) printf "%.0f",sum}')
+[ -n "$energy_uj" ] && printf 'energy_uj\t%s\n' "$energy_uj"
+power_uw=$(for f in /sys/class/power_supply/*/power_now; do [ -r "$f" ] && cat "$f"; done | awk '{sum+=$1} END{if(NR) printf "%.0f",sum}')
+[ -n "$power_uw" ] && awk -v uw="$power_uw" 'BEGIN{printf "power_watts\t%.3f\n",uw/1000000}'
+for b in /sys/class/power_supply/*; do
+  [ -r "$b/capacity" ] || continue
+  cap=$(cat "$b/capacity" 2>/dev/null); case "$cap" in ''|*[!0-9.]*) continue;; esac
+  printf 'battery_percent\t%s\n' "$cap"
+  status=$(cat "$b/status" 2>/dev/null || true); case "$status" in Charging|Full) printf 'battery_charging\ttrue\n';; esac
+  break
+done
 df -PT -B1 2>/dev/null | awk 'NR>1 && $3 ~ /^[0-9]+$/ {print "disk\t" $1 "\t" $2 "\t" $3 "\t" $4 "\t" $7}'
 for d in /sys/block/*; do [ -r "$d/size" ] || continue; n=${d##*/}; case "$n" in loop*|ram*) continue;; esac; sectors=$(cat "$d/size"); kind=ssd; [ -r "$d/queue/rotational" ] && [ "$(cat "$d/queue/rotational")" = 1 ] && kind=hdd; printf 'device\t%s %s %s\n' "$n" "$kind" "$((sectors*512))"; done
 if [ -r /run/servterm/accelerators.tsv ]; then
@@ -168,6 +179,13 @@ sysctl -n vm.swapusage | awk '
 function bytes(v, u){u=substr(v,length(v),1);v=substr(v,1,length(v)-1)+0;if(u=="K")return v*1024;if(u=="M")return v*1048576;if(u=="G")return v*1073741824;return v}
 {for(i=1;i<=NF;i++){if($i=="total")t=bytes($(i+2));if($i=="free")f=bytes($(i+2))}} END{printf "swap_total_bytes\t%.0f\nswap_free_bytes\t%.0f\n",t,f}'
 netstat -ibn | awk 'NR>1 && $1!="lo0" && $3~/^<Link#/ {rx+=$7;tx+=$10} END{print "net\t" rx+0,tx+0}'
+pmset -g batt 2>/dev/null | awk '/InternalBattery|%/ {if (match($0,/[0-9]+%/)) {v=substr($0,RSTART,RLENGTH);gsub(/%/,"",v);print "battery_percent\t" v; if ($0 ~ /charging|charged/) print "battery_charging\ttrue"; exit}}'
+smart_battery=$(ioreg -rn AppleSmartBattery -l 2>/dev/null || true)
+printf '%s\n' "$smart_battery" | awk '
+  /"Current" =/ {gsub(/[^0-9-]/,"",$0); current=$0}
+  /"Voltage" =/ {gsub(/[^0-9]/,"",$0); voltage=$0}
+  END {if (current!="" && voltage!="") {if (current<0) current=-current; printf "power_watts\t%.3f\n",current*voltage/1000000}}
+'
 accelerator_probe="$HOME/Library/Application Support/servterm/accelerators.tsv"
 if [ -r "$accelerator_probe" ]; then cat "$accelerator_probe"; fi
 gpu_info=$(ioreg -r -c IOAccelerator -l 2>/dev/null || true)
