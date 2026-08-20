@@ -93,6 +93,93 @@ func Capture(ctx context.Context, host string, port int, password string) ([]byt
 	return b.Bytes(), nil
 }
 
+// CaptureSession keeps one RFB connection and framebuffer alive. Call Next for
+// incremental updates instead of reconnecting for every frame.
+type CaptureSession struct {
+	conn     net.Conn
+	client   *vnc.ClientConn
+	messages chan vnc.ServerMessage
+	img      *image.RGBA
+	first    bool
+}
+
+func NewCaptureSession(ctx context.Context, host string, port int, password string) (*CaptureSession, error) {
+	d := net.Dialer{}
+	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", host, port))
+	if err != nil {
+		return nil, err
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+	}
+	messages := make(chan vnc.ServerMessage, 16)
+	none := vnc.ClientAuthNone(0)
+	auth := []vnc.ClientAuth{&none}
+	if password != "" {
+		auth = []vnc.ClientAuth{&vnc.PasswordAuth{Password: password}, &none}
+	}
+	client, err := vnc.Client(conn, &vnc.ClientConfig{Auth: auth, ServerMessageCh: messages, ServerMessages: []vnc.ServerMessage{&vnc.FramebufferUpdateMessage{}}})
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if err := client.SetPixelFormat(&vnc.PixelFormat{BPP: 32, Depth: 24, BigEndian: false, TrueColor: true, RedMax: 255, GreenMax: 255, BlueMax: 255, RedShift: 16, GreenShift: 8, BlueShift: 0}); err != nil {
+		_ = client.Close()
+		return nil, err
+	}
+	_ = client.SetEncodings([]vnc.Encoding{&vnc.RawEncoding{}})
+	return &CaptureSession{conn: conn, client: client, messages: messages, img: image.NewRGBA(image.Rect(0, 0, int(client.FrameBufferWidth), int(client.FrameBufferHeight))), first: true}, nil
+}
+func (s *CaptureSession) Close() {
+	if s != nil {
+		if s.client != nil {
+			_ = s.client.Close()
+		}
+		if s.conn != nil {
+			_ = s.conn.Close()
+		}
+	}
+}
+func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
+	if s.first {
+		if err := s.client.FramebufferUpdateRequest(false, 0, 0, s.client.FrameBufferWidth, s.client.FrameBufferHeight); err != nil {
+			return nil, err
+		}
+		s.first = false
+	} else {
+		if err := s.client.FramebufferUpdateRequest(true, 0, 0, s.client.FrameBufferWidth, s.client.FrameBufferHeight); err != nil {
+			return nil, err
+		}
+	}
+	select {
+	case msg := <-s.messages:
+		update, ok := msg.(*vnc.FramebufferUpdateMessage)
+		if !ok {
+			return nil, fmt.Errorf("unexpected VNC message %T", msg)
+		}
+		for _, rect := range update.Rectangles {
+			raw, ok := rect.Enc.(*vnc.RawEncoding)
+			if !ok {
+				continue
+			}
+			for i, c := range raw.Colors {
+				x := int(rect.X) + i%int(rect.Width)
+				y := int(rect.Y) + i/int(rect.Width)
+				if x < s.img.Rect.Max.X && y < s.img.Rect.Max.Y {
+					s.img.SetRGBA(x, y, colorToRGBA(c))
+				}
+			}
+		}
+		var b bytes.Buffer
+		if err := png.Encode(&b, s.img); err != nil {
+			return nil, err
+		}
+		return b.Bytes(), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 func sendVNC(ctx context.Context, host string, port int, password string, fn func(*vnc.ClientConn) error) error {
 	d := net.Dialer{}
 	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", host, port))

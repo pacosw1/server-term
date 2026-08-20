@@ -59,6 +59,13 @@ manager, `nohup`, or a shell supervisor to run it in the background and restart
 it. The output file is append-only and mode `0600`; each line has
 `schema_version`, `server`, and `sample` fields.
 
+Desktop frames use a persistent agent WebSocket/RFB session while the DESKTOP
+tab is active; they are not fetched by reconnecting VNC for every frame. Set
+`refresh_fps: 60` for the target rate and choose `quality: speed|balanced|quality`.
+Kitty and iTerm2 terminals receive inline GPU-rendered images; other terminals
+fall back to ANSI half-blocks. `SERVTERM_DESKTOP_RENDER=kitty|iterm2|blocks`
+overrides terminal detection.
+
 ### NVR widget provider
 
 Add a read-only NVR stats provider to the inventory:

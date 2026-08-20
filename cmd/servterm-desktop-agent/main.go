@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/coder/websocket"
 	"github.com/franciscosainzwilliams/server-term/internal/desktopclient"
 	"net"
 	"net/http"
@@ -108,6 +109,7 @@ func main() {
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(data)
 	}))
+	mux.HandleFunc("GET /v1/stream", auth(token, func(w http.ResponseWriter, r *http.Request) { serveStream(w, r, *vncHost, *vncPort, vncPassword) }))
 	mux.HandleFunc("POST /v1/key", auth(token, func(w http.ResponseWriter, r *http.Request) {
 		if !*allowInput || r.Header.Get("X-Servterm-Confirm") != "yes" {
 			http.Error(w, "input disabled or confirmation missing", http.StatusForbidden)
@@ -148,6 +150,29 @@ func main() {
 	server := &http.Server{Addr: *listen, Handler: mux, ReadHeaderTimeout: 3 * time.Second}
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		fatal(err)
+	}
+}
+
+func serveStream(w http.ResponseWriter, r *http.Request, host string, port int, password string) {
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	if err != nil {
+		return
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "stream closed")
+	session, err := desktopclient.NewCaptureSession(r.Context(), host, port, password)
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, err.Error())
+		return
+	}
+	defer session.Close()
+	for {
+		frame, err := session.Next(r.Context())
+		if err != nil {
+			return
+		}
+		if err := conn.Write(r.Context(), websocket.MessageBinary, frame); err != nil {
+			return
+		}
 	}
 }
 

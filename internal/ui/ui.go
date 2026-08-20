@@ -61,25 +61,37 @@ type desktopShotMsg struct {
 	Frame string
 	Err   error
 }
+type desktopStreamMsg struct {
+	Index  int
+	Stream *desktopclient.Stream
+	Frame  []byte
+	Err    error
+}
+type desktopStreamFrameMsg struct {
+	Index int
+	Frame []byte
+	Err   error
+}
 type Model struct {
-	cfg           config.Config
-	collector     collector.Collector
-	samples       []metrics.Sample
-	history       [][]metrics.Sample
-	cursor        int
-	detail        bool
-	detailTab     int
-	detailScroll  int
-	rangeIndex    int
-	displayCPU    []float64
-	displayCores  [][]float64
-	streamBuffers [][]metrics.Sample
-	desktopFrames map[int]string
-	desktopErrors map[int]string
-	width, height int
-	collecting    bool
-	pending       int
-	lastRefresh   time.Time
+	cfg            config.Config
+	collector      collector.Collector
+	samples        []metrics.Sample
+	history        [][]metrics.Sample
+	cursor         int
+	detail         bool
+	detailTab      int
+	detailScroll   int
+	rangeIndex     int
+	displayCPU     []float64
+	displayCores   [][]float64
+	streamBuffers  [][]metrics.Sample
+	desktopFrames  map[int]string
+	desktopErrors  map[int]string
+	desktopStreams map[int]*desktopclient.Stream
+	width, height  int
+	collecting     bool
+	pending        int
+	lastRefresh    time.Time
 }
 
 func New(cfg config.Config) Model {
@@ -89,7 +101,7 @@ func New(cfg config.Config) Model {
 			n++
 		}
 	}
-	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopErrors: map[int]string{}, collecting: n > 0, pending: n}
+	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, collecting: n > 0, pending: n}
 }
 func (m Model) Init() tea.Cmd { return tea.Batch(append(m.collectAll(), m.nextFrame())...) }
 func (m Model) nextFrame() tea.Cmd {
@@ -176,7 +188,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detailTab = (m.detailTab + 1) % maxTabs
 				m.detailScroll = 0
 				if m.detailTab == 7 {
-					return m, m.loadDesktop(m.cursor)
+					return m, m.startDesktop(m.cursor)
 				}
 			}
 		case "1":
@@ -198,7 +210,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.detail && m.desktopForServer(m.cursor) != nil {
 				m.detailTab = 7
 				m.detailScroll = 0
-				return m, m.loadDesktop(m.cursor)
+				return m, m.startDesktop(m.cursor)
 			}
 		case "c":
 			if m.detail && m.detailTab == 7 {
@@ -215,6 +227,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.loadHistory(m.cursor)
 			}
 		case "esc", "left", "h":
+			for i, s := range m.desktopStreams {
+				if s != nil {
+					s.Close()
+					m.desktopStreams[i] = nil
+				}
+			}
 			m.detail = false
 		case "r":
 			if !m.collecting {
@@ -278,6 +296,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.nextDesktop(msg.Index)
 			}
 		}
+	case desktopStreamMsg:
+		if msg.Err != nil {
+			m.desktopErrors[msg.Index] = msg.Err.Error()
+			return m, nil
+		}
+		m.desktopStreams[msg.Index] = msg.Stream
+		m.desktopErrors[msg.Index] = ""
+		m.desktopFrames[msg.Index] = m.renderDesktopFrame(msg.Index, msg.Frame)
+		return m, m.readDesktopStream(msg.Index)
+	case desktopStreamFrameMsg:
+		if msg.Err != nil {
+			m.desktopErrors[msg.Index] = msg.Err.Error()
+			if s := m.desktopStreams[msg.Index]; s != nil {
+				s.Close()
+			}
+			m.desktopStreams[msg.Index] = nil
+			return m, nil
+		}
+		m.desktopFrames[msg.Index] = m.renderDesktopFrame(msg.Index, msg.Frame)
+		return m, m.readDesktopStream(msg.Index)
 	case desktopRefreshMsg:
 		if m.detail && m.detailTab == 7 && msg.Index == m.cursor {
 			return m, m.loadDesktop(msg.Index)
@@ -599,6 +637,64 @@ func (m Model) loadDesktop(index int) tea.Cmd {
 		}
 		return desktopShotMsg{Index: index, Frame: ansiFrame(img, cols)}
 	}
+}
+func (m Model) startDesktop(index int) tea.Cmd {
+	return func() tea.Msg {
+		d := m.desktopForServer(index)
+		if d == nil {
+			return desktopStreamMsg{Index: index, Err: fmt.Errorf("no desktop configured")}
+		}
+		token := ""
+		if d.TokenEnv != "" {
+			token = os.Getenv(d.TokenEnv)
+		} else if d.TokenFile != "" {
+			b, err := os.ReadFile(config.ExpandHome(d.TokenFile))
+			if err != nil {
+				return desktopStreamMsg{Index: index, Err: err}
+			}
+			token = strings.TrimSpace(string(b))
+		}
+		s, err := desktopclient.OpenStream(context.Background(), *d, token)
+		if err != nil {
+			return desktopStreamMsg{Index: index, Err: err}
+		}
+		frame, err := s.Read(context.Background())
+		if err != nil {
+			s.Close()
+			return desktopStreamMsg{Index: index, Err: err}
+		}
+		return desktopStreamMsg{Index: index, Stream: s, Frame: frame}
+	}
+}
+func (m Model) readDesktopStream(index int) tea.Cmd {
+	s := m.desktopStreams[index]
+	if s == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		b, err := s.Read(context.Background())
+		return desktopStreamFrameMsg{Index: index, Frame: b, Err: err}
+	}
+}
+func (m Model) renderDesktopFrame(index int, b []byte) string {
+	d := m.desktopForServer(index)
+	cols := max(40, min(110, m.width-4))
+	if d != nil {
+		switch d.Quality {
+		case "speed":
+			cols = max(40, min(80, m.width-4))
+		case "quality":
+			cols = max(40, min(180, m.width-4))
+		}
+	}
+	if inline := emitDesktopImage(b, cols, 24); inline != "" {
+		return inline
+	}
+	img, err := png.Decode(stdbuf.NewReader(b))
+	if err != nil {
+		return ""
+	}
+	return ansiFrame(img, cols)
 }
 func (m Model) nextDesktop(index int) tea.Cmd {
 	d := m.desktopForServer(index)
