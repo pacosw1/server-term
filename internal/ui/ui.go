@@ -22,6 +22,7 @@ import (
 	"github.com/franciscosainzwilliams/server-term/internal/desktopclient"
 	"github.com/franciscosainzwilliams/server-term/internal/devtools"
 	"github.com/franciscosainzwilliams/server-term/internal/metrics"
+	"github.com/franciscosainzwilliams/server-term/internal/widget"
 )
 
 var (
@@ -86,6 +87,8 @@ type devtoolActionMsg struct {
 	Tool, Action, Output string
 	Err                  error
 }
+type orchestratorMsg widget.OrchestratorSnapshot
+type orchestratorTickMsg time.Time
 type Model struct {
 	cfg             config.Config
 	collector       collector.Collector
@@ -110,6 +113,8 @@ type Model struct {
 	devtoolConfirm  string
 	devtoolMessage  string
 	devtoolBusy     bool
+	orchestrator    widget.OrchestratorSnapshot
+	orchestratorSel int
 	width, height   int
 	collecting      bool
 	pending         int
@@ -125,7 +130,54 @@ func New(cfg config.Config) Model {
 	}
 	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, devtoolVersions: map[string]string{}, collecting: n > 0, pending: n}
 }
-func (m Model) Init() tea.Cmd { return tea.Batch(append(m.collectAll(), m.nextFrame())...) }
+func (m Model) Init() tea.Cmd {
+	cmds := append(m.collectAll(), m.nextFrame())
+	if m.orchestratorWidget() != nil {
+		cmds = append(cmds, m.fetchOrchestrator(), m.nextOrchestratorTick())
+	}
+	return tea.Batch(cmds...)
+}
+
+// nextOrchestratorTick schedules the next orchestrator refresh. It runs on
+// the same cadence as the server metrics, independent of the SSH poll cycle
+// so an all-agent inventory (no SSH servers) still refreshes the widget.
+func (m Model) nextOrchestratorTick() tea.Cmd {
+	return tea.Tick(m.cfg.RefreshInterval, func(t time.Time) tea.Msg { return orchestratorTickMsg(t) })
+}
+
+// orchestratorWidget returns the first configured "orchestrator" widget, or
+// nil when the inventory does not have one.
+func (m Model) orchestratorWidget() *config.Widget {
+	for i := range m.cfg.Widgets {
+		if m.cfg.Widgets[i].Type == "orchestrator" {
+			return &m.cfg.Widgets[i]
+		}
+	}
+	return nil
+}
+
+// fetchOrchestrator does one authenticated read of the orchestrator status
+// endpoint. It never issues an action against the orchestrator.
+func (m Model) fetchOrchestrator() tea.Cmd {
+	provider := m.orchestratorWidget()
+	if provider == nil {
+		return nil
+	}
+	p := *provider
+	return func() tea.Msg {
+		token := os.Getenv(p.TokenEnv)
+		if p.TokenFile != "" {
+			b, err := os.ReadFile(config.ExpandHome(p.TokenFile))
+			if err != nil {
+				return orchestratorMsg(widget.OrchestratorSnapshot{Name: p.Name, At: time.Now(), Error: "read token: " + err.Error()})
+			}
+			token = strings.TrimSpace(string(b))
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return orchestratorMsg(widget.FetchOrchestrator(ctx, p, token))
+	}
+}
 func (m Model) nextFrame() tea.Cmd {
 	return tea.Tick(time.Second/10, func(t time.Time) tea.Msg { return frameMsg(t) })
 }
@@ -199,6 +251,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.desktopForServer(m.cursor) != nil {
 					maxTabs = 10
 				}
+				if m.orchestratorWidget() != nil {
+					maxTabs++
+				}
 				m.detailTab = (m.detailTab + 1) % maxTabs
 				m.detailScroll = 0
 				if m.detailTab == 9 {
@@ -260,6 +315,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.detail && m.detailTab == 7 && isRemoteDesktopKey(msg.String()) {
 			return m, m.sendDesktopKey(m.cursor, msg.String())
 		}
+		if m.detail && m.detailTab == 10 {
+			switch msg.String() {
+			case "up", "k":
+				if m.orchestratorSel > 0 {
+					m.orchestratorSel--
+				}
+				return m, nil
+			case "down", "j":
+				if m.orchestratorSel < len(m.orchestrator.Agents)-1 {
+					m.orchestratorSel++
+				}
+				return m, nil
+			}
+		}
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -288,6 +357,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				maxTabs := 9
 				if m.desktopForServer(m.cursor) != nil {
 					maxTabs = 10
+				}
+				if m.orchestratorWidget() != nil {
+					maxTabs++
 				}
 				m.detailTab = (m.detailTab + 1) % maxTabs
 				m.detailScroll = 0
@@ -322,6 +394,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detailTab = 9
 				m.detailScroll = 0
 				return m, m.loadDevtoolsStatus(m.cursor)
+			}
+		case "o":
+			if m.detail && m.orchestratorWidget() != nil {
+				m.detailTab = 10
+				m.detailScroll = 0
 			}
 		case "c":
 			if m.detail && m.detailTab == 7 {
@@ -464,6 +541,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.desktopStreams[msg.Index] = msg.Stream
 		m.desktopErrors[msg.Index] = ""
 		m.desktopFrames[msg.Index] = m.renderDesktopFrame(msg.Index, msg.Frame)
+		if stream := m.desktopStreams[msg.Index]; stream != nil {
+			if text := stream.Clipboard(); text != "" {
+				setLocalClipboard(text)
+			}
+		}
 		return m, m.readDesktopStream(msg.Index)
 	case desktopStreamFrameMsg:
 		if msg.Err != nil {
@@ -520,6 +602,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, m.nextFrame()
+	case orchestratorMsg:
+		m.orchestrator = widget.OrchestratorSnapshot(msg)
+		if m.orchestratorSel >= len(m.orchestrator.Agents) {
+			m.orchestratorSel = max(0, len(m.orchestrator.Agents)-1)
+		}
+		return m, nil
+	case orchestratorTickMsg:
+		return m, tea.Batch(m.fetchOrchestrator(), m.nextOrchestratorTick())
 	case tickMsg:
 		if m.collecting {
 			return m, nil
@@ -728,6 +818,9 @@ func (m Model) detailView() string {
 	}
 	labels = append(labels, "9 SSH")
 	labels = append(labels, "10 DEVTOOLS")
+	if m.orchestratorWidget() != nil {
+		labels = append(labels, "o AGENTS")
+	}
 	tabs := "  "
 	for i, label := range labels {
 		tabs += tabLabel(label, m.detailTab == i) + "  "
@@ -759,6 +852,8 @@ func (m Model) detailView() string {
 		}
 	case 9:
 		body = m.devtoolsView()
+	case 10:
+		body = m.orchestratorView()
 	}
 	return info + common + tabs + body
 }
@@ -832,6 +927,63 @@ func (m Model) devtoolsView() string {
 	if m.devtoolMessage != "" {
 		b.WriteString("  " + m.devtoolMessage + "\n")
 	}
+	return b.String()
+}
+
+// orchestratorView renders the agent orchestrator status: a header line,
+// the live agent list with the selected agent highlighted, and the full
+// detail of the selected agent below the list.
+func (m Model) orchestratorView() string {
+	snap := m.orchestrator
+	var b strings.Builder
+	b.WriteString("  AGENT ORCHESTRATOR\n\n")
+	if snap.Error != "" {
+		b.WriteString("  " + errStyle.Render("unavailable: "+snap.Error) + "\n")
+		return b.String()
+	}
+	health := okStyle.Render("healthy")
+	if !snap.Healthy {
+		health = errStyle.Render("degraded")
+	}
+	fmt.Fprintf(&b, "  mode %-8s %s  •  %d live  •  spend $%.2f / $%.2f today  •  daemon CPU %.1f%%  MEM %s\n\n",
+		snap.Mode, health, snap.Totals.Live, snap.Budget.DayUSD, snap.Budget.DayLimitUSD, snap.Daemon.CPUPercent, bytes(uint64(max(0, snap.Daemon.RSSBytes))))
+	if len(snap.Agents) == 0 {
+		b.WriteString("  No agents are running.\n")
+		return b.String()
+	}
+	contentWidth := max(60, m.width-4)
+	for i, a := range snap.Agents {
+		line := fmt.Sprintf("  #%-5d %-14s %-40s $%.3f", a.Issue, a.State, truncate(a.Title, 40), a.CostUSD)
+		if i == m.orchestratorSel {
+			b.WriteString(lipgloss.NewStyle().Background(panel).Bold(true).Foreground(cyan).Render(pad(line, contentWidth)) + "\n")
+		} else {
+			b.WriteString(line + "\n")
+		}
+	}
+	if m.orchestratorSel < 0 || m.orchestratorSel >= len(snap.Agents) {
+		return b.String()
+	}
+	sel := snap.Agents[m.orchestratorSel]
+	pr := "—"
+	if sel.PRNumber != nil {
+		pr = fmt.Sprintf("#%d", *sel.PRNumber)
+	}
+	b.WriteString("\n")
+	fmt.Fprintf(&b, "  %-14s %s\n", "TITLE", sel.Title)
+	fmt.Fprintf(&b, "  %-14s %s\n", "STATE", sel.State)
+	fmt.Fprintf(&b, "  %-14s %d\n", "CYCLE", sel.Cycle)
+	fmt.Fprintf(&b, "  %-14s %s\n", "BRANCH", sel.Branch)
+	fmt.Fprintf(&b, "  %-14s %s\n", "PR", pr)
+	fmt.Fprintf(&b, "  %-14s %s\n", "ELAPSED", duration(float64(sel.ElapsedSeconds)))
+	fmt.Fprintf(&b, "  %-14s %d in / %d out\n", "TOKENS", sel.InputTokens, sel.OutputTokens)
+	fmt.Fprintf(&b, "  %-14s $%.3f\n", "COST", sel.CostUSD)
+	fmt.Fprintf(&b, "  %-14s %d\n", "PID", sel.PID)
+	fmt.Fprintf(&b, "  %-14s %.1f%%\n", "CPU", sel.CPUPercent)
+	fmt.Fprintf(&b, "  %-14s %s\n", "MEM", bytes(uint64(max(0, sel.RSSBytes))))
+	if sel.LastError != "" {
+		b.WriteString("  " + errStyle.Render(fmt.Sprintf("%-14s %s", "LAST ERROR", sel.LastError)) + "\n")
+	}
+	b.WriteString("\n  ↑/↓ select agent\n")
 	return b.String()
 }
 func (m Model) startSSH(index int) tea.Cmd {
@@ -1081,6 +1233,19 @@ func openDesktop(desktop *config.Desktop) tea.Cmd {
 			_ = exec.Command("xdg-open", uri).Run()
 		}
 		return nil
+	}
+}
+func setLocalClipboard(text string) {
+	if runtime.GOOS == "darwin" {
+		cmd := exec.Command("pbcopy")
+		cmd.Stdin = strings.NewReader(text)
+		_ = cmd.Run()
+		return
+	}
+	if _, err := exec.LookPath("xclip"); err == nil {
+		cmd := exec.Command("xclip", "-selection", "clipboard")
+		cmd.Stdin = strings.NewReader(text)
+		_ = cmd.Run()
 	}
 }
 func openSSH(server config.Server) tea.Cmd {

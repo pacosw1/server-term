@@ -97,12 +97,13 @@ func Capture(ctx context.Context, host string, port int, password string) ([]byt
 // CaptureSession keeps one RFB connection and framebuffer alive. Call Next for
 // incremental updates instead of reconnecting for every frame.
 type CaptureSession struct {
-	conn     net.Conn
-	client   *vnc.ClientConn
-	messages chan vnc.ServerMessage
-	img      *image.RGBA
-	first    bool
-	mu       sync.Mutex
+	conn      net.Conn
+	client    *vnc.ClientConn
+	messages  chan vnc.ServerMessage
+	img       *image.RGBA
+	first     bool
+	mu        sync.Mutex
+	clipboard string
 }
 
 func NewCaptureSession(ctx context.Context, host string, port int, password string) (*CaptureSession, error) {
@@ -161,7 +162,9 @@ func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
 		select {
 		case msg := <-s.messages:
 			if cut, ok := msg.(*vnc.ServerCutTextMessage); ok {
-				_ = cut
+				s.mu.Lock()
+				s.clipboard = cut.Text
+				s.mu.Unlock()
 				continue
 			}
 			update, ok := msg.(*vnc.FramebufferUpdateMessage)
@@ -193,6 +196,13 @@ func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
 			return nil, ctx.Err()
 		}
 	}
+}
+func (s *CaptureSession) TakeClipboard() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	text := s.clipboard
+	s.clipboard = ""
+	return text
 }
 func (s *CaptureSession) Key(keysym uint32) error {
 	s.mu.Lock()

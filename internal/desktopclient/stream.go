@@ -10,8 +10,9 @@ import (
 )
 
 type Stream struct {
-	conn   *websocket.Conn
-	tunnel *localTunnel
+	conn      *websocket.Conn
+	tunnel    *localTunnel
+	clipboard string
 }
 
 func OpenStream(ctx context.Context, desktop config.Desktop, token string) (*Stream, error) {
@@ -28,9 +29,22 @@ func OpenStream(ctx context.Context, desktop config.Desktop, token string) (*Str
 	return &Stream{conn: conn, tunnel: tunnel}, nil
 }
 func (s *Stream) Read(ctx context.Context) ([]byte, error) {
-	_, b, err := s.conn.Read(ctx)
-	return b, err
+	for {
+		kind, b, err := s.conn.Read(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if kind == websocket.MessageText {
+			var msg struct{ Type, Text string }
+			if json.Unmarshal(b, &msg) == nil && msg.Type == "clipboard" {
+				s.clipboard = msg.Text
+			}
+			continue
+		}
+		return b, nil
+	}
 }
+func (s *Stream) Clipboard() string { text := s.clipboard; s.clipboard = ""; return text }
 func (s *Stream) send(v any) error {
 	b, err := json.Marshal(v)
 	if err != nil {

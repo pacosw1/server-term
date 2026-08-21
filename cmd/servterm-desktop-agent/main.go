@@ -213,6 +213,12 @@ func serveStream(w http.ResponseWriter, r *http.Request, host string, port int, 
 		if err := conn.Write(streamCtx, websocket.MessageBinary, frame); err != nil {
 			return
 		}
+		if clipboard := session.TakeClipboard(); clipboard != "" {
+			payload, _ := json.Marshal(map[string]any{"type": "clipboard", "text": clipboard})
+			if err := conn.Write(streamCtx, websocket.MessageText, payload); err != nil {
+				return
+			}
+		}
 	}
 }
 
