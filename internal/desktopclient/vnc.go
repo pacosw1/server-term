@@ -144,17 +144,19 @@ func (s *CaptureSession) Close() {
 }
 func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.first {
 		if err := s.client.FramebufferUpdateRequest(false, 0, 0, s.client.FrameBufferWidth, s.client.FrameBufferHeight); err != nil {
+			s.mu.Unlock()
 			return nil, err
 		}
 		s.first = false
 	} else {
 		if err := s.client.FramebufferUpdateRequest(true, 0, 0, s.client.FrameBufferWidth, s.client.FrameBufferHeight); err != nil {
+			s.mu.Unlock()
 			return nil, err
 		}
 	}
+	s.mu.Unlock()
 	for {
 		select {
 		case msg := <-s.messages:
@@ -166,6 +168,7 @@ func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
 			if !ok {
 				return nil, fmt.Errorf("unexpected VNC message %T", msg)
 			}
+			s.mu.Lock()
 			for _, rect := range update.Rectangles {
 				raw, ok := rect.Enc.(*vnc.RawEncoding)
 				if !ok {
@@ -181,8 +184,10 @@ func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
 			}
 			var b bytes.Buffer
 			if err := png.Encode(&b, s.img); err != nil {
+				s.mu.Unlock()
 				return nil, err
 			}
+			s.mu.Unlock()
 			return b.Bytes(), nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
