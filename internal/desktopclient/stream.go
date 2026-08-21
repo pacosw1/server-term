@@ -48,6 +48,9 @@ func (s *Stream) Click(x, y int, right bool) error {
 	}
 	return s.send(map[string]any{"type": "click", "x": x, "y": y, "button": button})
 }
+func (s *Stream) ClipboardSet(text string) error {
+	return s.send(map[string]any{"type": "clipboard_set", "text": text})
+}
 func (s *Stream) Close() {
 	if s != nil {
 		if s.conn != nil {

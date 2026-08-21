@@ -178,6 +178,7 @@ func serveStream(w http.ResponseWriter, r *http.Request, host string, port int, 
 			var control struct {
 				Type   string `json:"type"`
 				Combo  string `json:"combo"`
+				Text   string `json:"text"`
 				X      int    `json:"x"`
 				Y      int    `json:"y"`
 				Button int    `json:"button"`
@@ -199,6 +200,8 @@ func serveStream(w http.ResponseWriter, r *http.Request, host string, port int, 
 					_ = session.Pointer(uint16(control.X), uint16(control.Y), mask)
 					_ = session.Pointer(uint16(control.X), uint16(control.Y), 0)
 				}
+			case "clipboard_set":
+				_ = session.CutText(control.Text)
 			}
 		}
 	}()

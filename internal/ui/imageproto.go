@@ -53,7 +53,7 @@ func emitDesktopImage(src []byte, cols, rows int) string {
 				more = 0
 			}
 			if i == 0 {
-				fmt.Fprintf(&out, "\x1b_Ga=T,f=100,c=%d,r=%d,q=2,m=%d;%s\x1b\\", cols, rows, more, b64[i:end])
+				fmt.Fprintf(&out, "\x1b_Ga=T,i=1,f=100,c=%d,r=%d,C=1,q=2,m=%d;%s\x1b\\", cols, rows, more, b64[i:end])
 			} else {
 				fmt.Fprintf(&out, "\x1b_Gm=%d;%s\x1b\\", more, b64[i:end])
 			}

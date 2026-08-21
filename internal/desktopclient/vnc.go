@@ -50,7 +50,7 @@ func Capture(ctx context.Context, host string, port int, password string) ([]byt
 	if password != "" {
 		auth = []vnc.ClientAuth{&vnc.PasswordAuth{Password: password}, &none}
 	}
-	client, err := vnc.Client(conn, &vnc.ClientConfig{Auth: auth, ServerMessageCh: messages, ServerMessages: []vnc.ServerMessage{&vnc.FramebufferUpdateMessage{}}})
+	client, err := vnc.Client(conn, &vnc.ClientConfig{Auth: auth, ServerMessageCh: messages, ServerMessages: []vnc.ServerMessage{&vnc.FramebufferUpdateMessage{}, &vnc.ServerCutTextMessage{}}})
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func NewCaptureSession(ctx context.Context, host string, port int, password stri
 	if password != "" {
 		auth = []vnc.ClientAuth{&vnc.PasswordAuth{Password: password}, &none}
 	}
-	client, err := vnc.Client(conn, &vnc.ClientConfig{Auth: auth, ServerMessageCh: messages, ServerMessages: []vnc.ServerMessage{&vnc.FramebufferUpdateMessage{}}})
+	client, err := vnc.Client(conn, &vnc.ClientConfig{Auth: auth, ServerMessageCh: messages, ServerMessages: []vnc.ServerMessage{&vnc.FramebufferUpdateMessage{}, &vnc.ServerCutTextMessage{}}})
 	if err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -155,32 +155,38 @@ func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
 			return nil, err
 		}
 	}
-	select {
-	case msg := <-s.messages:
-		update, ok := msg.(*vnc.FramebufferUpdateMessage)
-		if !ok {
-			return nil, fmt.Errorf("unexpected VNC message %T", msg)
-		}
-		for _, rect := range update.Rectangles {
-			raw, ok := rect.Enc.(*vnc.RawEncoding)
-			if !ok {
+	for {
+		select {
+		case msg := <-s.messages:
+			if cut, ok := msg.(*vnc.ServerCutTextMessage); ok {
+				_ = cut
 				continue
 			}
-			for i, c := range raw.Colors {
-				x := int(rect.X) + i%int(rect.Width)
-				y := int(rect.Y) + i/int(rect.Width)
-				if x < s.img.Rect.Max.X && y < s.img.Rect.Max.Y {
-					s.img.SetRGBA(x, y, colorToRGBA(c))
+			update, ok := msg.(*vnc.FramebufferUpdateMessage)
+			if !ok {
+				return nil, fmt.Errorf("unexpected VNC message %T", msg)
+			}
+			for _, rect := range update.Rectangles {
+				raw, ok := rect.Enc.(*vnc.RawEncoding)
+				if !ok {
+					continue
+				}
+				for i, c := range raw.Colors {
+					x := int(rect.X) + i%int(rect.Width)
+					y := int(rect.Y) + i/int(rect.Width)
+					if x < s.img.Rect.Max.X && y < s.img.Rect.Max.Y {
+						s.img.SetRGBA(x, y, colorToRGBA(c))
+					}
 				}
 			}
+			var b bytes.Buffer
+			if err := png.Encode(&b, s.img); err != nil {
+				return nil, err
+			}
+			return b.Bytes(), nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
-		var b bytes.Buffer
-		if err := png.Encode(&b, s.img); err != nil {
-			return nil, err
-		}
-		return b.Bytes(), nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
 	}
 }
 func (s *CaptureSession) Key(keysym uint32) error {
@@ -195,6 +201,11 @@ func (s *CaptureSession) Pointer(x, y uint16, mask vnc.ButtonMask) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.client.PointerEvent(mask, x, y)
+}
+func (s *CaptureSession) CutText(text string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.client.CutText(text)
 }
 
 func sendVNC(ctx context.Context, host string, port int, password string, fn func(*vnc.ClientConn) error) error {
