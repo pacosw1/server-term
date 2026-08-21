@@ -6,85 +6,71 @@ struct ServerListView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            ZStack {
+                PageBackground()
                 if model.config.servers.isEmpty {
-                    EmptyHint(
-                        title: "No server yet",
-                        message: "Open Settings and add a server. You need its agent URL and its token.")
+                    EmptyServerView()
                 } else {
-                    List {
-                        ForEach(model.config.servers) { server in
-                            Section {
-                                NavigationLink {
-                                    ServerDetailView(server: server)
-                                } label: {
-                                    ServerRow(server: server, reading: model.servers[server.id])
-                                }
-                                if let error = model.servers[server.id]?.error {
-                                    ErrorBanner(message: error)
+                    ScrollView {
+                        LazyVStack(spacing: Theme.cardSpacing) {
+                            if let message = model.bootstrapMessage {
+                                if model.bootstrapFailed {
+                                    ErrorBanner(message: message)
+                                } else {
+                                    Text(message)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }
+                            ForEach(model.config.servers) { server in
+                                NavigationLink(value: server) {
+                                    ServerCardView(
+                                        server: server,
+                                        reading: model.servers[server.id],
+                                        trend: model.cpuTrend(for: server.id),
+                                        transport: model.transports[server.id] ?? .idle)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
+                        .padding(.horizontal)
+                        .padding(.bottom, Theme.cardSpacing)
                     }
+                    .refreshable { await model.refreshAllServers(force: true) }
                 }
             }
             .navigationTitle("Servers")
+            .navigationDestination(for: ServerEntry.self) { server in
+                ServerDetailView(server: server)
+            }
         }
+        // The list shows every server, so it asks for a socket for each of
+        // them. The sockets close when the user leaves the tab.
+        .onAppear { model.setLiveWants(Set(model.config.servers.map(\.id)), for: "servers") }
+        .onDisappear { model.setLiveWants([], for: "servers") }
+        // The poll stays as the fallback. It skips a server that a healthy
+        // socket already feeds.
         .pollEvery(seconds: 3) {
             await model.refreshAllServers()
         }
     }
 }
 
-/// ServerRow shows one server. It shows a value only when the app has a
-/// reading. It shows the dash for every value that it does not know.
-struct ServerRow: View {
-    let server: ServerEntry
-    let reading: Reading<Sample>?
-
-    private var sample: Sample? { reading?.value }
-    private var isStale: Bool { reading?.error != nil && reading?.value != nil }
+/// EmptyServerView tells the user what to do when no server is set up.
+struct EmptyServerView: View {
+    @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(server.name).font(.headline)
-                    if !server.location.isEmpty {
-                        Text(server.location).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                Spacer()
-                StateBadge(text: stateText, color: stateColor)
+        VStack(spacing: Theme.cardSpacing) {
+            if let message = model.bootstrapMessage, model.bootstrapFailed {
+                ErrorBanner(message: message).padding(.horizontal)
             }
-            HStack(spacing: 16) {
-                metric("CPU", Format.optionalPercent(sample.map(\.cpuPercent)))
-                metric("MEM", Format.optionalPercent(sample?.memoryPercent))
-                metric("DISK", Format.optionalPercent(sample?.primaryDisk?.usedPercent))
+            ContentUnavailableView {
+                Label("No server yet", systemImage: "server.rack")
+            } description: {
+                Text("Open Settings and add a server. You need its agent URL and its token.")
             }
-            AgeNote(fetchedAt: reading?.fetchedAt, isStale: isStale)
-        }
-        .padding(.vertical, 2)
-    }
-
-    private func metric(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.subheadline.weight(.medium)).monospacedDigit()
-        }
-    }
-
-    private var stateText: String {
-        if reading?.error != nil { return "error" }
-        guard let sample else { return reading?.isLoading == true ? "reading" : "unknown" }
-        return sample.online ? "online" : "offline"
-    }
-
-    private var stateColor: Color {
-        switch stateText {
-        case "online": return .green
-        case "error", "offline": return .red
-        default: return .secondary
         }
     }
 }

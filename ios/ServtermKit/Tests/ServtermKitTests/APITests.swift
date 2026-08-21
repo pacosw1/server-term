@@ -93,4 +93,23 @@ struct APITests {
         #expect(request.url?.absoluteString == "http://100.0.0.1:7843/v1/status")
         #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
     }
+
+    @Test("the history request asks for the window that the chart needs")
+    func historyWindowRequest() async throws {
+        let client = FakeHTTPClient(status: 200, body: FixtureJSON.history)
+        let api = ServtermAPI(client: client)
+        let samples = try await api.history(baseURL: "http://100.0.0.1:7843", token: "t", minutes: 10)
+        #expect(samples.count == 2)
+        #expect(samples[0].at < samples[1].at)
+        let request = try #require(await client.requests.first)
+        #expect(request.url?.absoluteString == "http://100.0.0.1:7843/v1/history?minutes=10&limit=200")
+    }
+
+    @Test("an empty history is an empty chart, not an error")
+    func emptyHistoryIsNotAnError() async throws {
+        let client = FakeHTTPClient(status: 200, body: "[]")
+        let api = ServtermAPI(client: client)
+        let samples = try await api.history(baseURL: "http://100.0.0.1:7843", token: "t", minutes: 10)
+        #expect(samples.isEmpty)
+    }
 }

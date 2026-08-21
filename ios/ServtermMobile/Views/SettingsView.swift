@@ -12,16 +12,34 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let message = model.settingsMessage {
+                    ErrorBanner(message: message)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
                 Section("Servers") {
                     ForEach(model.config.servers) { server in
                         Button {
                             editedServer = server
                         } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(server.name).foregroundStyle(.primary)
-                                Text(server.agentURL).font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(server.name)
+                                    Text(server.agentURL)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                    ConnectionLine(
+                                        transport: model.transports[server.id] ?? .idle,
+                                        fetchedAt: model.servers[server.id]?.fetchedAt,
+                                        roundTrip: model.roundTrips[server.id])
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
                             }
                         }
+                        .buttonStyle(.plain)
                         .swipeActions {
                             Button("Remove", role: .destructive) { model.remove(server: server) }
                         }
@@ -34,11 +52,20 @@ struct SettingsView: View {
                         Button {
                             editsOrchestrator = true
                         } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(entry.name).foregroundStyle(.primary)
-                                Text(entry.endpoint).font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(entry.name)
+                                    Text(entry.endpoint)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
                             }
                         }
+                        .buttonStyle(.plain)
                         Button("Remove the orchestrator", role: .destructive) {
                             model.setOrchestrator(nil, token: nil)
                         }
@@ -50,6 +77,14 @@ struct SettingsView: View {
                 Section("Tools") {
                     Button("Detect the servterm ports") { showsDetect = true }
                     Button("Import a config") { showsImport = true }
+                }
+
+                Section("Connections") {
+                    Text("""
+                        The app reads a server over a live socket when it can.                         It falls back to a request every 3 seconds when the socket                         fails, and it says so on the server card.                         The orchestrator has no socket, so it always polls,                         and only while the Agents tab is open.
+                        """)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("How the app reads your servers") {
@@ -244,9 +279,11 @@ struct DetectView: View {
                                 HStack {
                                     Text("\(result.kind.rawValue) · port \(result.port)")
                                     Spacer()
-                                    StateBadge(
+                                    StateChip(
                                         text: result.reachable ? "answers" : "no answer",
-                                        color: result.reachable ? .green : .red)
+                                        color: result.reachable ? Theme.normal : Theme.critical,
+                                        systemImage: result.reachable
+                                            ? "checkmark.circle.fill" : "xmark.circle.fill")
                                 }
                                 Text(result.detail).font(.caption).foregroundStyle(.secondary)
                                 Text(result.url).font(.caption).foregroundStyle(.secondary)

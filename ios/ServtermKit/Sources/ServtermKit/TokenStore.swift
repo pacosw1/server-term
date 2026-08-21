@@ -5,7 +5,9 @@ import Security
 /// its source, into UserDefaults, or into a log.
 public protocol TokenStore: Sendable {
     func token(for id: String) -> String?
-    func setToken(_ token: String, for id: String)
+    /// setToken saves one token. It returns false when the store refuses
+    /// the write, so a caller never treats a lost token as a save.
+    @discardableResult func setToken(_ token: String, for id: String) -> Bool
     func removeToken(for id: String)
 }
 
@@ -38,13 +40,14 @@ public struct KeychainTokenStore: TokenStore {
         return text
     }
 
-    public func setToken(_ token: String, for id: String) {
+    @discardableResult
+    public func setToken(_ token: String, for id: String) -> Bool {
         removeToken(for: id)
-        guard !token.isEmpty else { return }
+        guard !token.isEmpty else { return true }
         var query = baseQuery(id)
         query[kSecValueData as String] = Data(token.utf8)
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(query as CFDictionary, nil)
+        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
     }
 
     public func removeToken(for id: String) {
@@ -66,8 +69,10 @@ public final class MemoryTokenStore: TokenStore, @unchecked Sendable {
         lock.withLock { tokens[id] }
     }
 
-    public func setToken(_ token: String, for id: String) {
+    @discardableResult
+    public func setToken(_ token: String, for id: String) -> Bool {
         lock.withLock { tokens[id] = token.isEmpty ? nil : token }
+        return true
     }
 
     public func removeToken(for id: String) {

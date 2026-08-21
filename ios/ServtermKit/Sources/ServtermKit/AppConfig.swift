@@ -2,7 +2,7 @@ import Foundation
 
 /// ServerEntry is one servterm agent that the app reads. The token is not
 /// here. The app keeps every token in the Keychain, under the entry id.
-public struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
+public struct ServerEntry: Codable, Sendable, Hashable, Identifiable {
     public let id: UUID
     public var name: String
     public var agentURL: String

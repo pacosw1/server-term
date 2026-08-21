@@ -86,6 +86,17 @@ public struct ServtermAPI: Sendable {
         return newest
     }
 
+    /// history reads a window of stored readings for a chart. An empty
+    /// window is not a failure: a new agent simply has no history yet.
+    public func history(baseURL: String, token: String, minutes: Int) async throws -> [Sample] {
+        let window = max(1, minutes)
+        let request = try Self.request(
+            base: baseURL, path: "/v1/history", query: "minutes=\(window)&limit=200", token: token)
+        let data = try await perform(request)
+        let page = try decode([WireSample].self, from: data, with: JSONDecoding.agent)
+        return page.map(\.sample).sorted { $0.at < $1.at }
+    }
+
     /// orchestrator reads the agent orchestrator snapshot.
     public func orchestrator(endpoint: String, token: String) async throws -> OrchestratorSnapshot {
         let request = try Self.request(base: endpoint, path: "/api/status", query: nil, token: token)

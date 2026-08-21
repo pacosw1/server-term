@@ -69,6 +69,12 @@ public enum Format {
         return isEstimate ? "est ~" + plain : plain
     }
 
+    /// cores turns a CPU percent into whole cores. 100 percent is one core.
+    public static func cores(cpuPercent: Double) -> String {
+        if !cpuPercent.isFinite || cpuPercent < 0 { return "n/a" }
+        return String(format: "%.2f cores", cpuPercent / 100)
+    }
+
     /// relativeAge says how old a reading is.
     public static func relativeAge(_ date: Date, now: Date = Date()) -> String {
         let seconds = now.timeIntervalSince(date)

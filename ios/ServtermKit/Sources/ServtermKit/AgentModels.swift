@@ -102,6 +102,35 @@ public struct DiskEntry: Decodable, Sendable, Equatable, Identifiable {
     }
 }
 
+/// BlockDevice is one disk that the machine carries. The agent reports the
+/// name, the kind and the size only.
+public struct BlockDevice: Decodable, Sendable, Equatable, Identifiable {
+    public let name: String
+    public let kind: String
+    public let size: UInt64
+
+    public var id: String { name }
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name", kind = "Kind", size = "Size"
+    }
+}
+
+/// ProcessSort is the order of the process list on the screen.
+public enum ProcessSort: String, Sendable, CaseIterable, Identifiable {
+    case cpu
+    case memory
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .cpu: return "CPU"
+        case .memory: return "Memory"
+        }
+    }
+}
+
 /// ProcessEntry is one process in the top list.
 public struct ProcessEntry: Decodable, Sendable, Equatable, Identifiable {
     public let pid: Int
@@ -112,6 +141,15 @@ public struct ProcessEntry: Decodable, Sendable, Equatable, Identifiable {
     public let rss: UInt64
 
     public var id: Int { pid }
+
+    public init(pid: Int, user: String, command: String, cpu: Double, memory: Double, rss: UInt64) {
+        self.pid = pid
+        self.user = user
+        self.command = command
+        self.cpu = cpu
+        self.memory = memory
+        self.rss = rss
+    }
 
     enum CodingKeys: String, CodingKey {
         case pid = "PID", user = "User", command = "Command"
@@ -169,6 +207,22 @@ public struct Sample: Decodable, Sendable, Equatable {
     public var disks: [DiskEntry] = []
     public var accelerators: [AcceleratorEntry] = []
     public var processes: [ProcessEntry] = []
+    public var corePercent: [Double] = []
+    public var netRx: UInt64 = 0
+    public var netTx: UInt64 = 0
+    public var netRxErrors: UInt64 = 0
+    public var netTxErrors: UInt64 = 0
+    public var netRxDrops: UInt64 = 0
+    public var netTxDrops: UInt64 = 0
+    public var pressureCPU: Double = 0
+    public var pressureMemory: Double = 0
+    public var pressureIO: Double = 0
+    public var devices: [BlockDevice] = []
+    /// latency is the age of the reading in nanoseconds, as the Go agent
+    /// writes a time.Duration.
+    public var latency: Int64 = 0
+    public var runners = RunnerStats()
+    public var runnerJobs: [RunnerJob] = []
 
     public static let empty = Sample()
 
@@ -186,6 +240,13 @@ public struct Sample: Decodable, Sendable, Equatable {
         case batteryPercent = "BatteryPercent", batteryKnown = "BatteryKnown"
         case batteryCharging = "BatteryCharging"
         case disks = "Disks", accelerators = "Accelerators", processes = "Processes"
+        case runners = "Runners", runnerJobs = "RunnerJobs"
+        case corePercent = "CorePercent", devices = "Devices", latency = "Latency"
+        case netRx = "NetRx", netTx = "NetTx"
+        case netRxErrors = "NetRxErrors", netTxErrors = "NetTxErrors"
+        case netRxDrops = "NetRxDrops", netTxDrops = "NetTxDrops"
+        case pressureCPU = "PressureCPU", pressureMemory = "PressureMemory"
+        case pressureIO = "PressureIO"
     }
 
     public init() {}
@@ -221,6 +282,20 @@ public struct Sample: Decodable, Sendable, Equatable {
         disks = try container.decodeIfPresent([DiskEntry].self, forKey: .disks) ?? []
         accelerators = try container.decodeIfPresent([AcceleratorEntry].self, forKey: .accelerators) ?? []
         processes = try container.decodeIfPresent([ProcessEntry].self, forKey: .processes) ?? []
+        corePercent = try container.decodeIfPresent([Double].self, forKey: .corePercent) ?? []
+        devices = try container.decodeIfPresent([BlockDevice].self, forKey: .devices) ?? []
+        latency = try container.decodeIfPresent(Int64.self, forKey: .latency) ?? 0
+        netRx = try container.decodeIfPresent(UInt64.self, forKey: .netRx) ?? 0
+        netTx = try container.decodeIfPresent(UInt64.self, forKey: .netTx) ?? 0
+        netRxErrors = try container.decodeIfPresent(UInt64.self, forKey: .netRxErrors) ?? 0
+        netTxErrors = try container.decodeIfPresent(UInt64.self, forKey: .netTxErrors) ?? 0
+        netRxDrops = try container.decodeIfPresent(UInt64.self, forKey: .netRxDrops) ?? 0
+        netTxDrops = try container.decodeIfPresent(UInt64.self, forKey: .netTxDrops) ?? 0
+        pressureCPU = try container.decodeIfPresent(Double.self, forKey: .pressureCPU) ?? 0
+        pressureMemory = try container.decodeIfPresent(Double.self, forKey: .pressureMemory) ?? 0
+        pressureIO = try container.decodeIfPresent(Double.self, forKey: .pressureIO) ?? 0
+        runners = try container.decodeIfPresent(RunnerStats.self, forKey: .runners) ?? RunnerStats()
+        runnerJobs = try container.decodeIfPresent([RunnerJob].self, forKey: .runnerJobs) ?? []
     }
 
     public var memoryUsedBytes: UInt64 {
@@ -244,14 +319,56 @@ public struct Sample: Decodable, Sendable, Equatable {
         return disks.filter { $0.total > 0 }.max(by: { $0.total < $1.total })
     }
 
+    /// sortedDisks puts the root mount first and then the largest file
+    /// systems, so the important readings come first on a small screen.
+    public var sortedDisks: [DiskEntry] {
+        disks.sorted { first, second in
+            if first.mount == "/" { return true }
+            if second.mount == "/" { return false }
+            return first.total > second.total
+        }
+    }
+
     /// batteryLevel is nil when the machine reports no battery.
     public var batteryLevel: Double? { batteryKnown ? batteryPercent : nil }
 
     /// power is nil when the machine reports no power meter.
     public var power: Double? { powerKnown ? powerWatts : nil }
 
+    /// hasRunners says whether this server runs CI runners at all. A server
+    /// with a listener but no job still belongs on the runners screen.
+    public var hasRunners: Bool {
+        runners.listeners > 0 || runners.activeJobs > 0 || !runnerJobs.isEmpty
+    }
+
     public var topProcesses: [ProcessEntry] {
-        processes.sorted { $0.cpu > $1.cpu }
+        processes(sortedBy: .cpu)
+    }
+
+    /// processes returns the list in the order that the reader chose.
+    public func processes(sortedBy order: ProcessSort) -> [ProcessEntry] {
+        switch order {
+        case .cpu: return processes.sorted { $0.cpu > $1.cpu }
+        case .memory: return processes.sorted { $0.rss > $1.rss }
+        }
+    }
+
+    /// hasPressure says whether the host reports the pressure readings at
+    /// all. Only Linux does, so a machine without them shows no card.
+    public var hasPressure: Bool {
+        pressureCPU > 0 || pressureMemory > 0 || pressureIO > 0
+    }
+
+    /// hasNetworkFaults says whether the interface counted any error or
+    /// any dropped packet.
+    public var hasNetworkFaults: Bool {
+        netRxErrors > 0 || netTxErrors > 0 || netRxDrops > 0 || netTxDrops > 0
+    }
+
+    /// latencySeconds is the age of the reading. It is nil when the agent
+    /// reports none, so the screen shows a dash instead of a zero.
+    public var latencySeconds: Double? {
+        latency <= 0 ? nil : Double(latency) / 1_000_000_000
     }
 }
 

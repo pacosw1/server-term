@@ -81,13 +81,13 @@ public struct OrchestratorTotals: Decodable, Sendable, Equatable {
     }
 }
 
-public struct OrchestratorTask: Decodable, Sendable, Equatable, Identifiable {
+public struct OrchestratorTask: Decodable, Sendable, Hashable, Identifiable {
     public let text: String
     public let done: Bool
     public var id: String { text }
 }
 
-public struct OrchestratorChild: Decodable, Sendable, Equatable, Identifiable {
+public struct OrchestratorChild: Decodable, Sendable, Hashable, Identifiable {
     public let id: String
     public let model: String
     public let state: String
@@ -99,7 +99,7 @@ public struct OrchestratorChild: Decodable, Sendable, Equatable, Identifiable {
     public let exitCode: Int?
 }
 
-public struct OrchestratorAgent: Decodable, Sendable, Equatable, Identifiable {
+public struct OrchestratorAgent: Decodable, Sendable, Hashable, Identifiable {
     public var issue: Int = 0
     public var title: String?
     public var state: String = ""
@@ -130,6 +130,20 @@ public struct OrchestratorAgent: Decodable, Sendable, Equatable, Identifiable {
 
     public var id: Int { issue }
     public var displayTitle: String { title ?? "issue \(issue)" }
+
+    /// issueURL points at the issue page. It is nil when the daemon
+    /// reports no repository, so no screen shows a link that fails.
+    public func issueURL(repo: String) -> URL? {
+        guard !repo.isEmpty, issue > 0 else { return nil }
+        return URL(string: "https://github.com/\(repo)/issues/\(issue)")
+    }
+
+    /// pullRequestURL points at the pull request. It is nil until the
+    /// agent opens one.
+    public func pullRequestURL(repo: String) -> URL? {
+        guard !repo.isEmpty, let number = prNumber, number > 0 else { return nil }
+        return URL(string: "https://github.com/\(repo)/pull/\(number)")
+    }
 
     enum CodingKeys: String, CodingKey {
         case issue, title, state, cycle, prNumber, branch, elapsedSeconds, inputTokens
@@ -205,6 +219,20 @@ public struct OrchestratorRecent: Decodable, Sendable, Equatable, Identifiable {
 
     public var id: Int { issue }
     public var displayTitle: String { title ?? "issue \(issue)" }
+
+    /// issueURL points at the issue page. It is nil when the daemon
+    /// reports no repository, so no screen shows a link that fails.
+    public func issueURL(repo: String) -> URL? {
+        guard !repo.isEmpty, issue > 0 else { return nil }
+        return URL(string: "https://github.com/\(repo)/issues/\(issue)")
+    }
+
+    /// pullRequestURL points at the pull request. It is nil until the
+    /// agent opens one.
+    public func pullRequestURL(repo: String) -> URL? {
+        guard !repo.isEmpty, let number = prNumber, number > 0 else { return nil }
+        return URL(string: "https://github.com/\(repo)/pull/\(number)")
+    }
 
     enum CodingKeys: String, CodingKey {
         case issue, state, prNumber, costUsd, title, lastError

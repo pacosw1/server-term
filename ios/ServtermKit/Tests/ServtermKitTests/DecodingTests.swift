@@ -104,4 +104,24 @@ struct DecodingTests {
         #expect(snapshot.healthy == false)
         #expect(snapshot.auth.mode == "unknown")
     }
+
+    @Test("an agent builds the issue link and the pull request link")
+    func agentLinks() throws {
+        let snapshot = try JSONDecoding.orchestrator.decode(
+            OrchestratorSnapshot.self, from: Data(FixtureJSON.orchestratorStatus.utf8))
+        let agent = snapshot.agents[0]
+        #expect(agent.issueURL(repo: snapshot.repo)?.absoluteString
+            == "https://github.com/example/repo/issues/91")
+        // The fixture agent has no pull request yet.
+        #expect(agent.pullRequestURL(repo: snapshot.repo) == nil)
+        #expect(agent.issueURL(repo: "") == nil)
+    }
+
+    @Test("the disks are ordered with the root first and the largest next")
+    func sortedDisks() throws {
+        let page = try JSONDecoding.agent.decode([WireSample].self, from: Data(FixtureJSON.history.utf8))
+        let disks = page[0].sample.sortedDisks
+        #expect(disks.first?.mount == "/")
+        #expect(disks.count == 2)
+    }
 }

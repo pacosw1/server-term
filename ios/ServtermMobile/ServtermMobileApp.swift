@@ -3,24 +3,24 @@ import SwiftUI
 @main
 struct ServtermMobileApp: App {
     @State private var model = AppModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(model)
-        }
-    }
-}
-
-struct RootView: View {
-    var body: some View {
-        TabView {
-            ServerListView()
-                .tabItem { Label("Servers", systemImage: "server.rack") }
-            AgentsView()
-                .tabItem { Label("Agents", systemImage: "cpu") }
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+                // The app looks for the one-time import file at each start
+                // and at each return to the screen.
+                .onAppear { model.runBootstrapImport() }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active {
+                        model.runBootstrapImport()
+                        model.resumeLive()
+                    } else {
+                        // A phone in a pocket must hold no socket open.
+                        model.suspendLive()
+                    }
+                }
         }
     }
 }
