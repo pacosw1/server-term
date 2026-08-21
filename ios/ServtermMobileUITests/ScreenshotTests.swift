@@ -33,22 +33,54 @@ final class ScreenshotTests: XCTestCase {
         Thread.sleep(forTimeInterval: 6)
         capture(app, name: "04-runners")
 
+        // Push into the runner of the first server, and then into a job.
+        let runnerHeader = app.buttons["runner-header"].firstMatch
+        if runnerHeader.waitForExistence(timeout: 5) {
+            runnerHeader.tap()
+            Thread.sleep(forTimeInterval: 6)
+            capture(app, name: "04b-runner-detail")
+            let jobRow = app.buttons["job-row"].firstMatch
+            if jobRow.waitForExistence(timeout: 5) {
+                jobRow.tap()
+                Thread.sleep(forTimeInterval: 12)
+                capture(app, name: "04c-job-detail")
+                goBack(app)
+            }
+            goBack(app)
+        }
+
         app.tabBars.buttons["Agents"].tap()
         Thread.sleep(forTimeInterval: 6)
         capture(app, name: "05-agents")
 
-        let firstAgent = app.scrollViews.buttons.firstMatch
-        if firstAgent.waitForExistence(timeout: 3) {
+        let firstAgent = app.buttons["agent-row"].firstMatch
+        if firstAgent.waitForExistence(timeout: 4) {
             firstAgent.tap()
-            Thread.sleep(forTimeInterval: 3)
+            Thread.sleep(forTimeInterval: 4)
             capture(app, name: "06-agent-detail")
-            app.navigationBars.buttons.firstMatch.tap()
+            app.swipeUp()
             Thread.sleep(forTimeInterval: 1)
+            capture(app, name: "06b-agent-detail-lower")
+            let tasks = app.buttons["task-summary"].firstMatch
+            if tasks.exists {
+                tasks.tap()
+                Thread.sleep(forTimeInterval: 2)
+                capture(app, name: "06c-agent-tasks")
+                goBack(app)
+            }
+            goBack(app)
         }
 
         app.tabBars.buttons["Settings"].tap()
         Thread.sleep(forTimeInterval: 2)
         capture(app, name: "07-settings")
+    }
+
+    /// goBack leaves one screen, if a back button is there to press.
+    private func goBack(_ app: XCUIApplication) {
+        let back = app.navigationBars.buttons.firstMatch
+        if back.exists { back.tap() }
+        Thread.sleep(forTimeInterval: 1.5)
     }
 
     private func capture(_ app: XCUIApplication, name: String, afterScrollingDown scroll: XCUIApplication? = nil) {

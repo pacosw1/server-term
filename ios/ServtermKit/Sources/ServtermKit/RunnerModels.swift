@@ -40,7 +40,7 @@ public struct RunnerStats: Decodable, Sendable, Equatable {
 
 /// RunnerJob is one CI job that runs now. Only worker_pid carries a JSON
 /// tag in the agent; the other keys are the Go field names.
-public struct RunnerJob: Decodable, Sendable, Equatable, Identifiable {
+public struct RunnerJob: Decodable, Sendable, Hashable, Identifiable {
     public var workerPID: Int = 0
     public var runner: String = ""
     public var repository: String = ""
@@ -94,8 +94,10 @@ public struct RunnerJob: Decodable, Sendable, Equatable, Identifiable {
     /// runURL points at the run page of the forge. It is nil when the agent
     /// reports no server, no repository, or no run id.
     public var runURL: URL? {
-        guard !serverURL.isEmpty, !repository.isEmpty, !runID.isEmpty else { return nil }
-        return URL(string: serverURL + "/" + repository + "/actions/runs/" + runID)
+        var base = serverURL.trimmingCharacters(in: .whitespaces)
+        while base.hasSuffix("/") { base.removeLast() }
+        guard !base.isEmpty, !repository.isEmpty, !runID.isEmpty else { return nil }
+        return URL(string: base + "/" + repository + "/actions/runs/" + runID)
     }
 
     /// sortedByElapsed puts the oldest job first, because a long job is

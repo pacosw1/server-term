@@ -3,6 +3,7 @@ import ServtermKit
 
 /// AgentDetailView is the full view of one agent. It is read only.
 struct AgentDetailView: View {
+    @Environment(AppModel.self) private var model
     let agent: OrchestratorAgent
     let repo: String
     let costIsEstimate: Bool
@@ -14,22 +15,9 @@ struct AgentDetailView: View {
                 LazyVStack(spacing: Theme.cardSpacing) {
                     identity
                     usage
-                    if let tasks = agent.tasks {
-                        AgentTaskCard(tasks: tasks)
-                    } else {
-                        Text("The daemon does not report a checklist for this agent.")
-                            .font(.footnote)
-                            .foregroundStyle(Theme.muted)
-                            .card()
-                    }
-                    if let children = agent.children {
-                        AgentChildrenCard(children: children, agent: agent)
-                    } else {
-                        Text("The daemon does not report subagents for this agent.")
-                            .font(.footnote)
-                            .foregroundStyle(Theme.muted)
-                            .card()
-                    }
+                    AgentActivityCard(tail: model.activityTail(for: agent.issue), now: Date())
+                    tasksSection
+                    childrenSection
                 }
                 .padding(.horizontal)
                 .padding(.bottom, Theme.cardSpacing)
@@ -37,6 +25,42 @@ struct AgentDetailView: View {
         }
         .navigationTitle("#\(agent.issue)")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: OrchestratorChild.self) { child in
+            AgentChildDetailView(child: child)
+        }
+    }
+
+    /// The checklist and the subagents each carry two different empty
+    /// states. A nil list means the daemon does not report that kind yet.
+    /// An empty list means the agent truly has none. The screen says which.
+    @ViewBuilder private var tasksSection: some View {
+        switch ReportedList.of(agent.tasks) {
+        case .items(let tasks):
+            NavigationLink {
+                AgentTasksView(issue: agent.issue, tasks: tasks)
+            } label: {
+                AgentTaskSummary(tasks: tasks)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("task-summary")
+        case .notReported, .none:
+            Text(ReportedList.of(agent.tasks).message(for: "task"))
+                .font(.footnote)
+                .foregroundStyle(Theme.muted)
+                .card()
+        }
+    }
+
+    @ViewBuilder private var childrenSection: some View {
+        switch ReportedList.of(agent.children) {
+        case .items(let children):
+            AgentChildrenCard(children: children, agent: agent)
+        case .notReported, .none:
+            Text(ReportedList.of(agent.children).message(for: "subagent"))
+                .font(.footnote)
+                .foregroundStyle(Theme.muted)
+                .card()
+        }
     }
 
     private var identity: some View {

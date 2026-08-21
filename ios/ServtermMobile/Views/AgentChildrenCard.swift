@@ -12,12 +12,8 @@ struct AgentChildrenCard: View {
             Text("\(agent.childrenRunning) run · \(agent.childrenDone) done · \(agent.childrenFailed) failed")
                 .font(.footnote)
                 .foregroundStyle(Theme.muted)
-            if children.isEmpty {
-                Text("This agent started no subagent.")
-                    .font(.footnote)
-                    .foregroundStyle(Theme.muted)
-            }
             ForEach(children) { child in
+                NavigationLink(value: child) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(child.model.isEmpty ? child.id : child.model)
@@ -35,8 +31,20 @@ struct AgentChildrenCard: View {
                         .font(.caption)
                         .monospacedDigit()
                         .foregroundStyle(Theme.muted)
+                    HStack {
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.muted)
+                    }
                 }
-                .padding(.vertical, 6)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.raised)
+                .overlay { Rectangle().strokeBorder(Theme.border, lineWidth: 1) }
+                }
+                .buttonStyle(.plain)
             }
         }
         .card()

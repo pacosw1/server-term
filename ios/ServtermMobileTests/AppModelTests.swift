@@ -143,4 +143,43 @@ struct AppModelTests {
         #expect(model.config.servers.count == 1)
         #expect(model.config.orchestrator?.endpoint == "http://10.0.0.1:7844")
     }
+
+    @Test("the app builds an activity history from the one line each poll carries")
+    func activityTail() async {
+        func payload(_ line: String) -> String {
+            """
+            {"mode":"fast","agents":[{"issue":7,"state":"working","last_activity":"\(line)"}]}
+            """
+        }
+        let model = AppModel(
+            api: ServtermAPI(client: StubHTTPClient([
+                .ok(payload("reading the repository")),
+                .ok(payload("reading the repository")),
+                .ok(payload("running the tests")),
+            ])),
+            tokens: MemoryTokenStore(), defaults: makeDefaults())
+        model.setOrchestrator(
+            OrchestratorEntry(name: "agents", endpoint: "http://10.0.0.1:7844"), token: "t")
+
+        await model.refreshOrchestrator()
+        await model.refreshOrchestrator()
+        await model.refreshOrchestrator()
+
+        let tail = model.activityTail(for: 7)
+        // The repeated line is one entry, and the newest line comes first.
+        #expect(tail.entries.map(\.text) == ["running the tests", "reading the repository"])
+    }
+
+    @Test("an agent that reports no activity line builds no history")
+    func emptyActivityTail() async {
+        let model = AppModel(
+            api: ServtermAPI(client: StubHTTPClient([
+                .ok("{\"mode\":\"fast\",\"agents\":[{\"issue\":7,\"state\":\"working\"}]}")
+            ])),
+            tokens: MemoryTokenStore(), defaults: makeDefaults())
+        model.setOrchestrator(
+            OrchestratorEntry(name: "agents", endpoint: "http://10.0.0.1:7844"), token: "t")
+        await model.refreshOrchestrator()
+        #expect(model.activityTail(for: 7).isEmpty)
+    }
 }

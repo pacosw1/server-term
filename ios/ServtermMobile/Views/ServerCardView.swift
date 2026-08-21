@@ -66,6 +66,7 @@ struct ServerCardView: View {
             }
         }
         .card()
+        .accessibilityIdentifier("server-card")
     }
 
     private var state: (text: String, color: Color, icon: String) {

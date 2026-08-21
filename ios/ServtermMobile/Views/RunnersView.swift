@@ -37,6 +37,12 @@ struct RunnersView: View {
                 }
             }
             .navigationTitle("Runners")
+            .navigationDestination(for: RunnerRoute.self) { route in
+                RunnerDetailView(server: route.server)
+            }
+            .navigationDestination(for: JobRoute.self) { route in
+                RunnerJobDetailView(server: route.server, job: route.job)
+            }
         }
         // The runners screen shows the same servers, so it keeps the same
         // sockets open while it is visible.

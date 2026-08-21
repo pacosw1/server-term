@@ -17,6 +17,7 @@ struct AgentsLiveSection: View {
                     AgentRowView(agent: agent, costIsEstimate: snapshot.costIsEstimate)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("agent-row")
             }
         }
         .card()

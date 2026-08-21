@@ -10,13 +10,18 @@ struct BlockChartCard: View {
     let columns: [SparkColumn]
     let latest: Double?
     let isPercent: Bool
+    /// window names the span under the title.
+    var window: String = "last 10 minutes"
+    /// latestOverride shows a figure that is neither a percent nor a rate,
+    /// for example a memory size.
+    var latestOverride: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.headline)
-                    Text(isPercent ? "last 10 minutes" : "last 10 minutes, scaled to the busiest minute")
+                    Text(isPercent ? window : window + ", scaled to the busiest column")
                         .font(.caption)
                         .foregroundStyle(Theme.muted)
                 }
@@ -34,6 +39,7 @@ struct BlockChartCard: View {
     }
 
     private var latestText: String {
+        if let latestOverride { return latestOverride }
         guard let latest else { return Format.unknown }
         return isPercent ? Format.percent(latest) : Format.rate(bytesPerSecond: latest)
     }

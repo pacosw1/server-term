@@ -12,19 +12,28 @@ struct RunnerHostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(server.name).font(.headline)
-                    if !server.location.isEmpty {
-                        Text(server.location).font(.subheadline).foregroundStyle(Theme.muted)
+            NavigationLink(value: RunnerRoute(server: server)) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(server.name).font(.headline)
+                        if !server.location.isEmpty {
+                            Text(server.location).font(.subheadline).foregroundStyle(Theme.muted)
+                        }
                     }
+                    Spacer(minLength: 8)
+                    StateChip(
+                        text: "\(sample?.runners.activeJobs ?? 0) active",
+                        color: (sample?.runners.activeJobs ?? 0) > 0 ? Theme.normal : Theme.muted,
+                        systemImage: "bolt.fill")
+                    Image(systemName: "chevron.right")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.muted)
                 }
-                Spacer(minLength: 8)
-                StateChip(
-                    text: "\(sample?.runners.activeJobs ?? 0) active",
-                    color: (sample?.runners.activeJobs ?? 0) > 0 ? Theme.normal : Theme.muted,
-                    systemImage: "bolt.fill")
+                .frame(minHeight: Theme.minimumTapTarget)
+                .contentShape(.rect)
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("runner-header")
             if let sample {
                 HStack(alignment: .top, spacing: 12) {
                     StatTile(
@@ -48,9 +57,14 @@ struct RunnerHostCard: View {
                         .foregroundStyle(Theme.muted)
                 } else {
                     ForEach(RunnerJob.sortedByElapsed(sample.runnerJobs, now: sample.at)) { job in
-                        RunnerJobRow(
-                            job: job, now: sample.at,
-                            cpu: model.jobCPU(pid: job.workerPID, serverID: server.id))
+                        NavigationLink(value: JobRoute(server: server, job: job)) {
+                            RunnerJobRow(
+                                job: job, now: sample.at,
+                                cpu: model.jobCPU(pid: job.workerPID, serverID: server.id))
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("job-row")
                     }
                 }
                 AgeNote(fetchedAt: reading?.fetchedAt, isStale: reading?.error != nil)

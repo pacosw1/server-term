@@ -50,6 +50,14 @@ final class AppModel {
     private var liveTasks: [UUID: Task<Void, Never>] = [:]
     private var liveWants: [String: Set<UUID>] = [:]
     private var badFrames: [UUID: Int] = [:]
+    /// activityTails hold the last lines that each agent reported. The
+    /// daemon keeps no history, so the app builds one while it watches.
+    var activityTails: [Int: ActivityTail] = [:]
+    /// jobTrends hold the readings that the app collects while a job
+    /// detail screen is open. They start empty when the screen opens.
+    var jobCPUTrends: [String: [MetricPoint]] = [:]
+    var jobRSSTrends: [String: [MetricPoint]] = [:]
+    private var watchedJobs: Set<String> = []
     private var isSuspended = false
     var orchestrator = Reading<OrchestratorSnapshot>()
     /// bootstrapMessage tells the user what the one-time import file did.
@@ -233,11 +241,53 @@ final class AppModel {
         servers[id] = reading
     }
 
+    /// jobKey names one job of one server.
+    static func jobKey(serverID: UUID, pid: Int) -> String { "\(serverID.uuidString)-\(pid)" }
+
+    /// watchJob starts a trend for one job. The trend begins now, so the
+    /// screen must say that a short trend is a young screen, not a quiet
+    /// job.
+    func watchJob(pid: Int, serverID: UUID) {
+        let key = Self.jobKey(serverID: serverID, pid: pid)
+        watchedJobs.insert(key)
+        jobCPUTrends[key] = jobCPUTrends[key] ?? []
+        jobRSSTrends[key] = jobRSSTrends[key] ?? []
+    }
+
+    func stopWatchingJob(pid: Int, serverID: UUID) {
+        watchedJobs.remove(Self.jobKey(serverID: serverID, pid: pid))
+    }
+
+    func jobCPUTrend(pid: Int, serverID: UUID) -> [MetricPoint] {
+        jobCPUTrends[Self.jobKey(serverID: serverID, pid: pid)] ?? []
+    }
+
+    func jobRSSTrend(pid: Int, serverID: UUID) -> [MetricPoint] {
+        jobRSSTrends[Self.jobKey(serverID: serverID, pid: pid)] ?? []
+    }
+
+    /// recordJobTrends keeps one point for each watched job of a server.
+    private func recordJobTrends(sample: Sample, previous: Sample?, id: UUID) {
+        for job in sample.runnerJobs {
+            let key = Self.jobKey(serverID: id, pid: job.workerPID)
+            guard watchedJobs.contains(key) else { continue }
+            if let cpu = RunnerMath.jobCPU(pid: job.workerPID, previous: previous, current: sample) {
+                jobCPUTrends[key] = MetricSeries.append(
+                    MetricPoint(at: sample.at, value: cpu, name: "cpu"),
+                    to: jobCPUTrends[key] ?? [], limit: 60)
+            }
+            jobRSSTrends[key] = MetricSeries.append(
+                MetricPoint(at: sample.at, value: Double(job.rss), name: "rss"),
+                to: jobRSSTrends[key] ?? [], limit: 60)
+        }
+    }
+
     /// apply stores one fresh reading. The poll and the socket both end
     /// here, so a reading looks the same whatever brought it.
     private func apply(sample: Sample, to id: UUID) {
         var reading = servers[id] ?? Reading<Sample>()
         if let old = reading.value, old.at != sample.at { previousSamples[id] = old }
+        recordJobTrends(sample: sample, previous: previousSamples[id], id: id)
         trends[id] = MetricSeries.append(
             MetricPoint(at: sample.at, value: sample.cpuPercent, name: "cpu"),
             to: trends[id] ?? [], limit: 60)
@@ -338,6 +388,11 @@ final class AppModel {
             let snapshot = try await api.orchestrator(endpoint: entry.endpoint, token: token)
             orchestrator.value = snapshot
             orchestrator.fetchedAt = Date()
+            let now = Date()
+            for agent in snapshot.agents {
+                activityTails[agent.issue, default: ActivityTail()]
+                    .record(agent.lastActivity, at: now)
+            }
             orchestrator.error = snapshot.error.isEmpty ? nil : snapshot.error
         } catch let error as ServtermError {
             orchestrator.error = error.message
@@ -383,6 +438,11 @@ final class AppModel {
     /// runnerServers lists only the servers that report a runner.
     var runnerServers: [ServerEntry] {
         config.servers.filter { servers[$0.id]?.value?.hasRunners == true }
+    }
+
+    /// activityTail is the history that the app built for one agent.
+    func activityTail(for issue: Int) -> ActivityTail {
+        activityTails[issue] ?? ActivityTail()
     }
 
     /// probe tests the standard servterm ports on one host.
