@@ -40,6 +40,24 @@ struct ServerDetailView: View {
                             ServerDevicesCard(devices: sample.devices)
                         }
                         ServerNetworkCard(sample: sample)
+                        if !sample.interfaces.isEmpty {
+                            InterfacesCard(
+                                interfaces: sample.interfaces,
+                                ratesKnown: model.hasTwoReadings(server.id))
+                        }
+                        // A card appears only when the host reports that
+                        // kind. A virtual machine has no sensor and macOS
+                        // reports no block device traffic; that is normal,
+                        // so the screen shows nothing instead of an empty
+                        // block that reads as broken.
+                        if sample.hasDiskIO {
+                            DiskIOCard(
+                                entries: sample.diskIO, disks: sample.disks,
+                                ratesKnown: model.hasTwoReadings(server.id))
+                        }
+                        if sample.hasSensors {
+                            TemperaturesCard(temperatures: sample.temperatures)
+                        }
                         if sample.hasPressure {
                             ServerPressureCard(sample: sample)
                         }

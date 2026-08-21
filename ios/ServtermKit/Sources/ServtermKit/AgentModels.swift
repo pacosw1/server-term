@@ -218,6 +218,11 @@ public struct Sample: Decodable, Sendable, Equatable {
     public var pressureMemory: Double = 0
     public var pressureIO: Double = 0
     public var devices: [BlockDevice] = []
+    /// A host that cannot read a kind sends null for it, which means "none
+    /// reported". It is a normal state, never a failure.
+    public var temperatures: [Temperature] = []
+    public var diskIO: [DiskIOEntry] = []
+    public var interfaces: [InterfaceEntry] = []
     /// latency is the age of the reading in nanoseconds, as the Go agent
     /// writes a time.Duration.
     public var latency: Int64 = 0
@@ -242,6 +247,7 @@ public struct Sample: Decodable, Sendable, Equatable {
         case disks = "Disks", accelerators = "Accelerators", processes = "Processes"
         case runners = "Runners", runnerJobs = "RunnerJobs"
         case corePercent = "CorePercent", devices = "Devices", latency = "Latency"
+        case temperatures = "Temperatures", diskIO = "DiskIO", interfaces = "Interfaces"
         case netRx = "NetRx", netTx = "NetTx"
         case netRxErrors = "NetRxErrors", netTxErrors = "NetTxErrors"
         case netRxDrops = "NetRxDrops", netTxDrops = "NetTxDrops"
@@ -284,6 +290,9 @@ public struct Sample: Decodable, Sendable, Equatable {
         processes = try container.decodeIfPresent([ProcessEntry].self, forKey: .processes) ?? []
         corePercent = try container.decodeIfPresent([Double].self, forKey: .corePercent) ?? []
         devices = try container.decodeIfPresent([BlockDevice].self, forKey: .devices) ?? []
+        temperatures = try container.decodeIfPresent([Temperature].self, forKey: .temperatures) ?? []
+        diskIO = try container.decodeIfPresent([DiskIOEntry].self, forKey: .diskIO) ?? []
+        interfaces = try container.decodeIfPresent([InterfaceEntry].self, forKey: .interfaces) ?? []
         latency = try container.decodeIfPresent(Int64.self, forKey: .latency) ?? 0
         netRx = try container.decodeIfPresent(UInt64.self, forKey: .netRx) ?? 0
         netTx = try container.decodeIfPresent(UInt64.self, forKey: .netTx) ?? 0
@@ -352,6 +361,13 @@ public struct Sample: Decodable, Sendable, Equatable {
         case .memory: return processes.sorted { $0.rss > $1.rss }
         }
     }
+
+    /// hasSensors says whether the host reads any temperature at all. A
+    /// virtual machine and a Mac report none.
+    public var hasSensors: Bool { !temperatures.isEmpty }
+
+    /// hasDiskIO says whether the host counts block device traffic.
+    public var hasDiskIO: Bool { !diskIO.isEmpty }
 
     /// hasPressure says whether the host reports the pressure readings at
     /// all. Only Linux does, so a machine without them shows no card.

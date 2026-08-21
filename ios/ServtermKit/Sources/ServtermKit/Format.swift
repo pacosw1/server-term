@@ -36,6 +36,19 @@ public enum Format {
         return bytes(Int64(bytesPerSecond)) + "/s"
     }
 
+    /// rate with a known flag shows the dash while the app still has only
+    /// one reading. A rate needs two readings, so a 0 on the first frame
+    /// means "not known yet", not "idle".
+    public static func rate(bytesPerSecond: Double, known: Bool) -> String {
+        known ? rate(bytesPerSecond: bytesPerSecond) : unknown
+    }
+
+    /// celsius shows one temperature. The agent sends no limit with it, so
+    /// the app never grades it.
+    public static func celsius(_ value: Double) -> String {
+        value.isFinite ? String(format: "%.1f °C", value) : "n/a"
+    }
+
     public static func percent(_ value: Double) -> String {
         if !value.isFinite { return "n/a" }
         return String(format: "%.1f%%", value)

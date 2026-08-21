@@ -19,6 +19,12 @@ final class ScreenshotTests: XCTestCase {
             Thread.sleep(forTimeInterval: 8)
             capture(app, name: "02-server-detail")
             capture(app, name: "03-server-detail-lower", afterScrollingDown: app)
+            for _ in 0..<3 { app.swipeUp() }
+            Thread.sleep(forTimeInterval: 2)
+            capture(app, name: "03b-server-detail-network")
+            for _ in 0..<2 { app.swipeUp() }
+            Thread.sleep(forTimeInterval: 2)
+            capture(app, name: "03c-server-detail-sensors")
             app.navigationBars.buttons.firstMatch.tap()
             Thread.sleep(forTimeInterval: 1)
         }

@@ -370,6 +370,10 @@ final class AppModel {
         return MetricSeries.cpu(from: samples)
     }
 
+    /// hasTwoReadings says whether the app can show a rate at all. Every
+    /// rate comes from two readings, so the first frame has none.
+    func hasTwoReadings(_ id: UUID) -> Bool { previousSamples[id] != nil }
+
     /// jobCPU derives the CPU of one runner job from two readings.
     func jobCPU(pid: Int, serverID: UUID) -> Double? {
         guard let current = servers[serverID]?.value else { return nil }

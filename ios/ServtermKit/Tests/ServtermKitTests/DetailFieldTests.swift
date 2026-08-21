@@ -10,7 +10,7 @@ private let detailBody = """
   "Hostname":"node-a","Cores":4,
   "CorePercent":[1.5,0,50,99.5],
   "PressureCPU":0.42,"PressureMemory":0,"PressureIO":1.75,
-  "NetRx":332844817,"NetTx":106658072,
+  "NetRx":460368015617,"NetTx":644505220527,
   "NetRxErrors":0,"NetTxErrors":45,"NetRxDrops":3,"NetTxDrops":0,
   "Devices":[{"Name":"nvme0n1","Kind":"ssd","Size":1920383410176},
              {"Name":"md0","Kind":"ssd","Size":268369920}]}}]
@@ -56,8 +56,8 @@ struct DetailFieldTests {
     @Test("the network counters decode, and the totals stay whole")
     func networkCounters() throws {
         let sample = try sample()
-        #expect(sample.netRx == 332_844_817)
-        #expect(sample.netTx == 106_658_072)
+        #expect(sample.netRx == 460_368_015_617)
+        #expect(sample.netTx == 644_505_220_527)
         #expect(sample.netTxErrors == 45)
         #expect(sample.netRxDrops == 3)
         #expect(sample.hasNetworkFaults)
