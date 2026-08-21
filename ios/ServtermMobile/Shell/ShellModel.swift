@@ -17,7 +17,7 @@ final class ShellModel {
     var onOutput: (([UInt8]) -> Void)?
 
     private let client: any SSHConnecting
-    private let locator: TmuxLocator
+    private let service: TmuxSessionService
     private let identityStore: KeychainIdentityStore
     private var readTask: Task<Void, Never>?
     private var machine = SessionMachine()
@@ -25,12 +25,15 @@ final class ShellModel {
     init(
         client: any SSHConnecting = NIOSSHClient(
             checker: HostKeyChecker(store: KeychainFingerprintStore())),
-        locator: TmuxLocator = TmuxLocator(
-            runner: SSHCommandRunner(checker: HostKeyChecker(store: KeychainFingerprintStore()))),
+        service: TmuxSessionService? = nil,
         identityStore: KeychainIdentityStore = KeychainIdentityStore()
     ) {
+        let runner = SSHCommandRunner(checker: HostKeyChecker(store: KeychainFingerprintStore()))
         self.client = client
-        self.locator = locator
+        self.service = service
+            ?? TmuxSessionService(
+                runner: runner,
+                locator: TmuxProbeLocator(runner: runner, cache: DefaultsTmuxCache()))
         self.identityStore = identityStore
     }
 
@@ -64,25 +67,11 @@ final class ShellModel {
         let probeRequest = SSHRequest(
             host: server.host, user: server.sshUser, identity: identity,
             plan: SessionPlan.plainShell(reason: "probe"), columns: columns, rows: rows)
-        readTask = Task { [client, locator] in
-            // The app resolves tmux once for this host: the plain name, a
-            // login shell, then the known paths. A host where all three
-            // fail still gets a shell, and the screen says why. A probe
-            // that never reached the host says nothing about tmux, so the
-            // note stays empty and the connection state carries the fault.
-            var probeReached = true
-            var tmux: String?
-            do {
-                tmux = try await locator.locate(probeRequest)
-            } catch {
-                probeReached = false
-            }
-            let plan = tmux.flatMap { SessionPlan.attach(session: session, tmux: $0) }
-                ?? SessionPlan.plainShell(
-                    reason: probeReached
-                        ? "The app found no tmux on this host"
-                        : "The app could not ask this host about tmux")
-            await MainActor.run { self.note = probeReached ? plan.note : "" }
+        readTask = Task { [client, service] in
+            // The plan comes from the same service the session list uses,
+            // so the screen and the list can never disagree about a host.
+            let plan = await service.plan(session: session, request: probeRequest)
+            await MainActor.run { self.note = plan.note }
             let request = SSHRequest(
                 host: server.host, user: server.sshUser, identity: identity,
                 plan: plan, columns: columns, rows: rows)
