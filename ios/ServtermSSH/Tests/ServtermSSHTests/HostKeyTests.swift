@@ -4,11 +4,12 @@ import Testing
 
 /// MemoryFingerprintStore keeps the pinned fingerprints in memory, so no
 /// test writes to the real store.
-private final class MemoryFingerprintStore: FingerprintStore, @unchecked Sendable {
+final class MemoryFingerprintStore: FingerprintStore, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: String]
 
     init(_ values: [String: String] = [:]) { self.values = values }
+
 
     func fingerprint(forHost host: String) -> String? { lock.withLock { values[host] } }
 

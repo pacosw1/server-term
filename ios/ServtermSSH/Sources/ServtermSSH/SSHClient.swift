@@ -76,25 +76,14 @@ public actor NIOSSHClient: SSHConnecting {
         self.continuation = continuation
         continuation.yield(.state(.connecting))
         do {
-            let hostKeyValidator = HostKeyValidator(host: request.host, checker: checker)
-            // The delegate tells the watcher when the host asks for another
-            // method, which means it refused the key.
             let authWatcher = AuthWatcher()
-            let authDelegate = PublicKeyAuthDelegate(
-                user: request.user, key: request.identity.nioKey,
-                onRefused: { [weak authWatcher] in authWatcher?.refuse() })
+            let checker = self.checker
             let bootstrap = ClientBootstrap(group: group)
                 .channelInitializer { channel in
-                    channel.pipeline.addHandlers([
-                        authWatcher,
-                        NIOSSHHandler(
-                            role: .client(
-                                .init(
-                                    userAuthDelegate: authDelegate,
-                                    serverAuthDelegate: hostKeyValidator)),
-                            allocator: channel.allocator,
-                            inboundChildChannelInitializer: nil)
-                    ])
+                    channel.pipeline.addHandlers(
+                        SSHPipeline.clientHandlers(
+                            host: request.host, user: request.user, key: request.identity.nioKey,
+                            checker: checker, watcher: authWatcher, allocator: channel.allocator))
                 }
                 .connectTimeout(.seconds(10))
             let channel = try await bootstrap.connect(host: request.host, port: request.port).get()
@@ -214,6 +203,37 @@ public actor NIOSSHClient: SSHConnecting {
     }
 }
 
+/// SSHPipeline builds the handlers of one client connection, in the one
+/// order that works.
+///
+/// NIOSSH reports a finished authentication with
+/// context.fireUserInboundEventTriggered, and an inbound event walks
+/// towards the TAIL of the pipeline. The watcher must therefore sit BEHIND
+/// the SSH handler. With the watcher in front, it never hears the event:
+/// sshd accepts the key and opens a session, the app waits for a signal
+/// that can never reach it, and nothing is ever asked of that session.
+enum SSHPipeline {
+    static func clientHandlers(
+        host: String,
+        user: String,
+        key: NIOSSHPrivateKey,
+        checker: HostKeyChecker,
+        watcher: AuthWatcher,
+        allocator: ByteBufferAllocator
+    ) -> [ChannelHandler] {
+        let delegate = PublicKeyAuthDelegate(
+            user: user, key: key, onRefused: { [weak watcher] in watcher?.refuse() })
+        let validator = HostKeyValidator(host: host, checker: checker)
+        return [
+            NIOSSHHandler(
+                role: .client(.init(userAuthDelegate: delegate, serverAuthDelegate: validator)),
+                allocator: allocator,
+                inboundChildChannelInitializer: nil),
+            watcher,
+        ]
+    }
+}
+
 /// AuthWatcher tells the client when the user authentication finished. A
 /// closed connection before that means the host refused the key.
 final class AuthWatcher: ChannelInboundHandler, @unchecked Sendable {
@@ -222,6 +242,9 @@ final class AuthWatcher: ChannelInboundHandler, @unchecked Sendable {
     private let lock = NSLock()
     private var promise: EventLoopPromise<Void>?
     private var authenticated = false
+
+    /// hasAuthenticated says whether the event ever arrived here.
+    var hasAuthenticated: Bool { lock.withLock { authenticated } }
 
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
         if event is UserAuthSuccessEvent {
@@ -243,6 +266,12 @@ final class AuthWatcher: ChannelInboundHandler, @unchecked Sendable {
     /// fails when the host refuses it, when the connection closes, or when
     /// the host says nothing at all.
     func waitForAuthentication(on channel: Channel, timeout: TimeAmount = .seconds(20)) async throws {
+        try await authentication(on: channel, timeout: timeout).get()
+    }
+
+    /// authentication is the same wait as a future, so a test can drive it
+    /// on an embedded loop.
+    func authentication(on channel: Channel, timeout: TimeAmount) -> EventLoopFuture<Void> {
         let promise = channel.eventLoop.makePromise(of: Void.self)
         let alreadyDone = lock.withLock { () -> Bool in
             if authenticated { return true }
@@ -261,7 +290,7 @@ final class AuthWatcher: ChannelInboundHandler, @unchecked Sendable {
                 promise.fail(SSHClientError.transport("the host did not answer the key in time"))
             }
         }
-        try await promise.futureResult.get()
+        return promise.futureResult
     }
 }
 

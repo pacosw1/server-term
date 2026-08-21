@@ -34,19 +34,12 @@ public struct SSHCommandRunner: SSHRunning {
 
     public func run(_ request: SSHRequest, command: String) async throws -> CommandResult {
         let authWatcher = AuthWatcher()
-        let validator = HostKeyValidator(host: request.host, checker: checker)
-        let delegate = PublicKeyAuthDelegate(
-            user: request.user, key: request.identity.nioKey,
-            onRefused: { [weak authWatcher] in authWatcher?.refuse() })
         let bootstrap = ClientBootstrap(group: group)
             .channelInitializer { channel in
-                channel.pipeline.addHandlers([
-                    authWatcher,
-                    NIOSSHHandler(
-                        role: .client(.init(userAuthDelegate: delegate, serverAuthDelegate: validator)),
-                        allocator: channel.allocator,
-                        inboundChildChannelInitializer: nil),
-                ])
+                channel.pipeline.addHandlers(
+                    SSHPipeline.clientHandlers(
+                        host: request.host, user: request.user, key: request.identity.nioKey,
+                        checker: checker, watcher: authWatcher, allocator: channel.allocator))
             }
             .connectTimeout(.seconds(10))
         let channel = try await bootstrap.connect(host: request.host, port: request.port).get()
