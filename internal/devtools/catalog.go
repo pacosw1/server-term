@@ -51,7 +51,7 @@ func StatusDetailed(ctx context.Context, server config.Server) (map[string]State
 	}
 	result := map[string]State{}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		p := strings.SplitN(line, "\t", 2)
+		p := strings.SplitN(line, "\t", 3)
 		if len(p) >= 2 {
 			result[p[0]] = State{Installed: p[1] == "true"}
 			if len(p) > 2 {
