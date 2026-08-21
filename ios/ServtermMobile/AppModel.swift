@@ -183,6 +183,10 @@ final class AppModel {
                 var existing = next.servers[index]
                 existing.name = server.name
                 existing.location = server.location
+                // A later import carries fields that an older one did not,
+                // for example the shell account. Keeping the old empty
+                // value would leave the shell closed for no reason.
+                if !server.sshUser.isEmpty { existing.sshUser = server.sshUser }
                 next.servers[index] = existing
                 if let token, !tokens.setToken(token, for: existing.id.uuidString) { saved = false }
             } else {

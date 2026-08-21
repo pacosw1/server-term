@@ -142,4 +142,39 @@ struct BootstrapAppTests {
             server: ServerEntry(name: "one", agentURL: "http://10.0.0.1:7843"), token: "t")
         #expect(model.settingsMessage == nil)
     }
+
+    @Test("a second import adds a shell account that the first one lacked")
+    func importAddsShellAccount() {
+        let model = makeModel(tokens: MemoryTokenStore())
+        let first = """
+        {"servers":[{"name":"one","agent_url":"http://100.64.0.1:7843","token":"t"}]}
+        """
+        model.runBootstrapImport(
+            files: StubFileAccess(files: [importURL: Data(first.utf8)]), directory: folder)
+        #expect(model.config.servers[0].sshUser == "")
+
+        let second = """
+        {"servers":[{"name":"one","agent_url":"http://100.64.0.1:7843","ssh_user":"root","token":"t"}]}
+        """
+        model.runBootstrapImport(
+            files: StubFileAccess(files: [importURL: Data(second.utf8)]), directory: folder)
+        #expect(model.config.servers.count == 1)
+        #expect(model.config.servers[0].sshUser == "root")
+    }
+
+    @Test("an import without a shell account does not wipe one already set")
+    func importKeepsShellAccount() {
+        let model = makeModel(tokens: MemoryTokenStore())
+        let withUser = """
+        {"servers":[{"name":"one","agent_url":"http://100.64.0.1:7843","ssh_user":"root"}]}
+        """
+        model.runBootstrapImport(
+            files: StubFileAccess(files: [importURL: Data(withUser.utf8)]), directory: folder)
+        let without = """
+        {"servers":[{"name":"one","agent_url":"http://100.64.0.1:7843"}]}
+        """
+        model.runBootstrapImport(
+            files: StubFileAccess(files: [importURL: Data(without.utf8)]), directory: folder)
+        #expect(model.config.servers[0].sshUser == "root")
+    }
 }

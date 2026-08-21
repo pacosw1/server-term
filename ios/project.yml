@@ -1,3 +1,8 @@
+# SwiftTerm ships a build tool plug-in. A command line build fails on
+# "Validate plug-in" until it is trusted, so every xcodebuild command for
+# this project needs:
+#   -skipPackagePluginValidation -skipMacroValidation
+# In Xcode.app you approve the plug-in once in a dialog instead.
 name: ServtermMobile
 options:
   bundleIdPrefix: com.servterm
@@ -13,6 +18,11 @@ settings:
 packages:
   ServtermKit:
     path: ServtermKit
+  ServtermSSH:
+    path: ServtermSSH
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm.git
+    from: 1.20.0
 targets:
   ServtermMobile:
     type: application
@@ -22,6 +32,10 @@ targets:
     dependencies:
       - package: ServtermKit
         product: ServtermKit
+      - package: ServtermSSH
+        product: ServtermSSH
+      - package: SwiftTerm
+        product: SwiftTerm
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.servterm.mobile
@@ -72,6 +86,17 @@ schemes:
         - ServtermMobileTests
     run:
       config: Debug
+  ShellVerification:
+    build:
+      targets:
+        ServtermMobile: all
+        ServtermMobileUITests: [test]
+    test:
+      targets:
+        - name: ServtermMobileUITests
+          skippedTests:
+            - ScreenshotTests
+
   Screenshots:
     build:
       targets:
@@ -79,4 +104,6 @@ schemes:
         ServtermMobileUITests: [test]
     test:
       targets:
-        - ServtermMobileUITests
+        - name: ServtermMobileUITests
+          skippedTests:
+            - ShellVerificationTests

@@ -11,7 +11,13 @@ struct ServtermMobileApp: App {
                 .environment(model)
                 // The app looks for the one-time import file at each start
                 // and at each return to the screen.
-                .onAppear { model.runBootstrapImport() }
+                .onAppear {
+                    model.runBootstrapImport()
+                    // The key of this phone is made once, at the first
+                    // start, so the user can copy the public line from
+                    // Settings before opening any shell.
+                    ShellIdentityBootstrap.prepare()
+                }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         model.runBootstrapImport()

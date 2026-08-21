@@ -3,16 +3,41 @@ import Foundation
 /// ServerEntry is one servterm agent that the app reads. The token is not
 /// here. The app keeps every token in the Keychain, under the entry id.
 public struct ServerEntry: Codable, Sendable, Hashable, Identifiable {
+    enum CodingKeys: String, CodingKey {
+        case id, name, agentURL, location, sshUser
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        agentURL = try c.decode(String.self, forKey: .agentURL)
+        location = (try? c.decodeIfPresent(String.self, forKey: .location)) as? String ?? ""
+        sshUser = ((try? c.decodeIfPresent(String.self, forKey: .sshUser)) ?? nil) ?? ""
+    }
+
     public let id: UUID
     public var name: String
     public var agentURL: String
     public var location: String
-
-    public init(id: UUID = UUID(), name: String, agentURL: String, location: String = "") {
+    /// sshUser is the account for a shell on this host. It is empty until
+    /// the user sets it, and the shell screen then asks for it.
+    public var sshUser: String
+    public init(
+        id: UUID = UUID(), name: String, agentURL: String, location: String = "",
+        sshUser: String = ""
+    ) {
         self.id = id
         self.name = name
         self.agentURL = agentURL
         self.location = location
+        self.sshUser = sshUser
+    }
+
+    /// host is the machine name or the address, taken from the agent URL.
+    /// A shell goes to the same machine, on the standard SSH port.
+    public var host: String {
+        URL(string: agentURL)?.host ?? ""
     }
 }
 

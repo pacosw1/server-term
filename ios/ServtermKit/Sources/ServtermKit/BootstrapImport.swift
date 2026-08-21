@@ -54,12 +54,14 @@ public enum BootstrapImport {
             let agentURL: String?
             let location: String?
             let token: String?
+            let sshUser: String?
 
             enum CodingKeys: String, CodingKey {
                 case name
                 case agentURL = "agent_url"
                 case location
                 case token
+                case sshUser = "ssh_user"
             }
         }
 
@@ -87,7 +89,8 @@ public enum BootstrapImport {
         for server in file.servers ?? [] {
             guard let url = server.agentURL, !url.isEmpty else { continue }
             let entry = ServerEntry(
-                name: server.name ?? url, agentURL: url, location: server.location ?? "")
+                name: server.name ?? url, agentURL: url, location: server.location ?? "",
+                sshUser: server.sshUser ?? "")
             config.servers.append(entry)
             if let token = server.token, !token.isEmpty {
                 tokens[entry.id.uuidString] = token

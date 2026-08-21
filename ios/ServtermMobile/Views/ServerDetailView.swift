@@ -16,6 +16,15 @@ struct ServerDetailView: View {
                     if let error = reading?.error {
                         ErrorBanner(message: error)
                     }
+                    NavigationLink(value: SessionsRoute(server: server)) {
+                        Label("Shell sessions", systemImage: "terminal")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: Theme.minimumTapTarget, alignment: .leading)
+                            .card()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("open-shell")
                     if let sample = reading?.value {
                         ServerHeaderCard(
                             sample: sample, fetchedAt: reading?.fetchedAt,
@@ -89,6 +98,12 @@ struct ServerDetailView: View {
         }
         .navigationTitle(server.name)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: SessionsRoute.self) { route in
+            SessionsView(server: route.server)
+        }
+        .navigationDestination(for: ShellRoute.self) { route in
+            ShellView(server: route.server, session: route.session)
+        }
         .task { await model.loadHistory(server: server) }
         .onAppear { model.setLiveWants([server.id], for: "detail") }
         .onDisappear { model.setLiveWants([], for: "detail") }

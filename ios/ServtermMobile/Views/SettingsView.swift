@@ -83,6 +83,17 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    PhoneKeyCard()
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    TrustedHostsCard()
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                } header: {
+                    Text("Shell access").foregroundStyle(Theme.muted)
+                }
+
+                Section {
                     Button("Detect the servterm ports") { showsDetect = true }
                         .foregroundStyle(Theme.accent)
                     Button("Import a config") { showsImport = true }
@@ -164,6 +175,7 @@ struct ServerEditView: View {
     @State private var name = ""
     @State private var agentURL = "http://"
     @State private var location = ""
+    @State private var sshUser = ""
     @State private var token = ""
 
     var body: some View {
@@ -176,6 +188,12 @@ struct ServerEditView: View {
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
                     TextField("Location", text: $location)
+                    TextField("Shell account", text: $sshUser)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Text("The shell account is the user that SSH signs in as, for example root. Leave it empty to keep the shell closed for this server.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
                 }
                 Section("Token") {
                     SecureField("Bearer token", text: $token)
@@ -206,6 +224,7 @@ struct ServerEditView: View {
         name = server.name
         agentURL = server.agentURL
         location = server.location
+        sshUser = server.sshUser
         token = model.token(for: server.id)
     }
 
@@ -214,7 +233,8 @@ struct ServerEditView: View {
             id: server?.id ?? UUID(),
             name: name.trimmingCharacters(in: .whitespaces),
             agentURL: agentURL.trimmingCharacters(in: .whitespaces),
-            location: location.trimmingCharacters(in: .whitespaces))
+            location: location.trimmingCharacters(in: .whitespaces),
+            sshUser: sshUser.trimmingCharacters(in: .whitespaces))
         model.upsert(server: entry, token: token)
         dismiss()
     }

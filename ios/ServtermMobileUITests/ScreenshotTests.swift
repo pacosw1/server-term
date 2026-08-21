@@ -29,6 +29,28 @@ final class ScreenshotTests: XCTestCase {
             Thread.sleep(forTimeInterval: 1)
         }
 
+        // Open a shell on the first server, to see the connection state.
+        let firstServerAgain = app.scrollViews.buttons.firstMatch
+        if firstServerAgain.waitForExistence(timeout: 4) {
+            firstServerAgain.tap()
+            Thread.sleep(forTimeInterval: 4)
+            let shell = app.buttons["open-shell"].firstMatch
+            if shell.waitForExistence(timeout: 5) {
+                shell.tap()
+                Thread.sleep(forTimeInterval: 14)
+                capture(app, name: "08-sessions")
+                let session = app.buttons["session-row"].firstMatch
+                if session.exists {
+                    session.tap()
+                    Thread.sleep(forTimeInterval: 12)
+                    capture(app, name: "08b-shell")
+                    goBack(app)
+                }
+                goBack(app)
+            }
+            goBack(app)
+        }
+
         app.tabBars.buttons["Runners"].tap()
         Thread.sleep(forTimeInterval: 6)
         capture(app, name: "04-runners")

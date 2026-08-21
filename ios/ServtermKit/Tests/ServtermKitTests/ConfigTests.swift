@@ -77,3 +77,33 @@ struct ConfigTests {
         #expect(loaded.orchestrator?.endpoint == "http://10.0.0.1:7844")
     }
 }
+
+@Suite("The shell account")
+struct ServerShellTests {
+    @Test("the host of a shell comes from the agent URL")
+    func host() {
+        #expect(ServerEntry(name: "a", agentURL: "http://100.64.0.1:7843").host == "100.64.0.1")
+        #expect(ServerEntry(name: "a", agentURL: "http://box.tail.ts.net:7843").host == "box.tail.ts.net")
+        #expect(ServerEntry(name: "a", agentURL: "").host == "")
+    }
+
+    @Test("a config saved before the shell existed still loads")
+    func oldConfigLoads() throws {
+        let old = """
+        {"servers":[{"id":"6C4B1F1E-3F0A-4C2E-9B7D-0F1E2D3C4B5A","name":"one",
+          "agentURL":"http://10.0.0.1:7843","location":"Lab"}]}
+        """
+        let config = try JSONDecoder().decode(AppConfig.self, from: Data(old.utf8))
+        #expect(config.servers[0].sshUser == "")
+        #expect(config.servers[0].name == "one")
+    }
+
+    @Test("the bootstrap file can carry the shell account")
+    func bootstrapCarriesUser() throws {
+        let body = """
+        {"servers":[{"name":"a","agent_url":"http://10.0.0.1:7843","ssh_user":"root","token":"t"}]}
+        """
+        let result = try BootstrapImport.parse(Data(body.utf8))
+        #expect(result.config.servers[0].sshUser == "root")
+    }
+}
