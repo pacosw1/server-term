@@ -58,7 +58,7 @@ func Capture(ctx context.Context, host string, port int, password string) ([]byt
 	if err := client.SetPixelFormat(&vnc.PixelFormat{BPP: 32, Depth: 24, BigEndian: false, TrueColor: true, RedMax: 255, GreenMax: 255, BlueMax: 255, RedShift: 16, GreenShift: 8, BlueShift: 0}); err != nil {
 		return nil, err
 	}
-	_ = client.SetEncodings([]vnc.Encoding{&vnc.RawEncoding{}})
+	_ = client.SetEncodings([]vnc.Encoding{&HextileEncoding{}, &vnc.RawEncoding{}})
 	if err := client.FramebufferUpdateRequest(false, 0, 0, client.FrameBufferWidth, client.FrameBufferHeight); err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func NewCaptureSession(ctx context.Context, host string, port int, password stri
 		_ = client.Close()
 		return nil, err
 	}
-	_ = client.SetEncodings([]vnc.Encoding{&vnc.RawEncoding{}})
+	_ = client.SetEncodings([]vnc.Encoding{&HextileEncoding{}, &vnc.RawEncoding{}})
 	return &CaptureSession{conn: conn, client: client, messages: messages, img: image.NewRGBA(image.Rect(0, 0, int(client.FrameBufferWidth), int(client.FrameBufferHeight))), first: true}, nil
 }
 func (s *CaptureSession) Close() {
