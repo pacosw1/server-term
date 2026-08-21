@@ -32,19 +32,19 @@ struct ServerHeaderCard: View {
                     systemImage: "gauge.with.dots.needle.50percent")
             }
             Divider()
-            LabeledContent("Host", value: text(sample.hostname))
-            LabeledContent("System", value: text(sample.os))
-            LabeledContent("Kernel", value: text(sample.kernel))
-            LabeledContent("Cores", value: sample.cores > 0 ? "\(sample.cores)" : Format.unknown)
-            LabeledContent("Uptime", value: Format.duration(seconds: sample.uptimeSeconds))
-            LabeledContent(
+            InfoRow("Host", value: text(sample.hostname))
+            InfoRow("System", value: text(sample.os))
+            InfoRow("Kernel", value: text(sample.kernel))
+            InfoRow("Cores", value: sample.cores > 0 ? "\(sample.cores)" : Format.unknown)
+            InfoRow("Uptime", value: Format.duration(seconds: sample.uptimeSeconds))
+            InfoRow(
                 "Load 1 / 5 / 15",
                 value: String(format: "%.2f  %.2f  %.2f", sample.load1, sample.load5, sample.load15))
             if let power = sample.power {
-                LabeledContent("Power", value: String(format: "%.1f W", power))
+                InfoRow("Power", value: String(format: "%.1f W", power))
             }
             if let battery = sample.batteryLevel {
-                LabeledContent(
+                InfoRow(
                     "Battery",
                     value: Format.percent(battery) + (sample.batteryCharging ? " charging" : ""))
             }
@@ -56,7 +56,7 @@ struct ServerHeaderCard: View {
             if case .polling(let reason) = transport {
                 Text(reason)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

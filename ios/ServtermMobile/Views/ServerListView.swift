@@ -19,7 +19,7 @@ struct ServerListView: View {
                                 } else {
                                     Text(message)
                                         .font(.footnote)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Theme.muted)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             }

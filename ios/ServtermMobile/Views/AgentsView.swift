@@ -33,7 +33,7 @@ struct AgentsView: View {
                                 AgentsRecentSection(snapshot: snapshot)
                             } else {
                                 Text("The app has no snapshot yet.")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(Theme.muted)
                                     .card()
                             }
                         }

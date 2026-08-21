@@ -19,7 +19,7 @@ struct AgentDetailView: View {
                     } else {
                         Text("The daemon does not report a checklist for this agent.")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.muted)
                             .card()
                     }
                     if let children = agent.children {
@@ -27,7 +27,7 @@ struct AgentDetailView: View {
                     } else {
                         Text("The daemon does not report subagents for this agent.")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.muted)
                             .card()
                     }
                 }
@@ -49,12 +49,12 @@ struct AgentDetailView: View {
                 StateChip(text: agent.state, color: AgentState.color(agent.state),
                           systemImage: AgentState.icon(agent.state))
             }
-            LabeledContent("Elapsed", value: Format.duration(seconds: Double(agent.elapsedSeconds)))
-            LabeledContent("Cycle", value: "\(agent.cycle)")
-            LabeledContent("Turns", value: "\(agent.turns)")
-            LabeledContent("Branch", value: agent.branch.isEmpty ? Format.unknown : agent.branch)
-            LabeledContent("Last activity", value: agent.lastActivity ?? Format.unknown)
-            LabeledContent(
+            InfoRow("Elapsed", value: Format.duration(seconds: Double(agent.elapsedSeconds)))
+            InfoRow("Cycle", value: "\(agent.cycle)")
+            InfoRow("Turns", value: "\(agent.turns)")
+            InfoRow("Branch", value: agent.branch.isEmpty ? Format.unknown : agent.branch)
+            InfoRow("Last activity", value: agent.lastActivity ?? Format.unknown)
+            InfoRow(
                 "Activity age",
                 value: agent.activityAgeSeconds.map { Format.duration(seconds: Double($0)) }
                     ?? Format.unknown)
@@ -89,11 +89,11 @@ struct AgentDetailView: View {
                     systemImage: "dollarsign.circle")
             }
             Divider()
-            LabeledContent("Input tokens", value: "\(agent.inputTokens)")
-            LabeledContent("Output tokens", value: "\(agent.outputTokens)")
-            LabeledContent("Process", value: agent.pid > 0 ? "\(agent.pid)" : Format.unknown)
-            LabeledContent("Worktree", value: agent.worktree.isEmpty ? Format.unknown : agent.worktree)
-            LabeledContent("Worktree disk", value: Format.optionalBytes(agent.worktreeDiskBytes))
+            InfoRow("Input tokens", value: "\(agent.inputTokens)")
+            InfoRow("Output tokens", value: "\(agent.outputTokens)")
+            InfoRow("Process", value: agent.pid > 0 ? "\(agent.pid)" : Format.unknown)
+            InfoRow("Worktree", value: agent.worktree.isEmpty ? Format.unknown : agent.worktree)
+            InfoRow("Worktree disk", value: Format.optionalBytes(agent.worktreeDiskBytes))
             if let weekly = agent.weeklyPercentUsed {
                 MeterView(label: "Plan week", percent: weekly)
             }

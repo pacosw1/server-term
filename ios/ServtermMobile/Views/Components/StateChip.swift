@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// StateChip shows one state in one word. It carries a shape as well as a
-/// colour, so the state is readable without colour.
+/// StateChip shows one state in one word. It carries a symbol as well as a
+/// colour, so the state is readable without colour, and a hard 2 pixel
+/// border in its own colour, so it is readable at a glance.
 struct StateChip: View {
     let text: String
     let color: Color
@@ -9,9 +10,10 @@ struct StateChip: View {
 
     var body: some View {
         Label {
-            Text(text)
+            Text(text.uppercased())
                 .font(.caption)
                 .bold()
+                .kerning(0.6)
         } icon: {
             if let systemImage {
                 Image(systemName: systemImage)
@@ -19,10 +21,15 @@ struct StateChip: View {
             }
         }
         .labelStyle(.titleAndIcon)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(color.opacity(0.16), in: .capsule)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .foregroundStyle(color)
+        .background(Theme.base)
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.cardRadius)
+                .strokeBorder(color, lineWidth: Theme.borderWidth)
+        }
+        .clipShape(.rect(cornerRadius: Theme.cardRadius))
         .accessibilityLabel(text)
     }
 }

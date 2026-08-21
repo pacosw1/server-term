@@ -23,19 +23,19 @@ struct MetricChartView: View {
                         .font(.headline)
                     Text(window)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 }
                 Spacer(minLength: 8)
                 Text(latestText)
                     .font(.subheadline)
                     .monospacedDigit()
                     .contentTransition(.numericText())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
             if points.count < 2 {
                 Text("The agent has no history for this window yet.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
                     .frame(height: Theme.chartHeight / 2, alignment: .center)
             } else {
                 chart
@@ -66,21 +66,26 @@ struct MetricChartView: View {
         .modifier(PercentScale(isPercent: isPercent))
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) {
-                AxisGridLine().foregroundStyle(.quaternary)
+                AxisGridLine().foregroundStyle(Theme.border)
             }
         }
         .chartYAxis {
             AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine().foregroundStyle(.quaternary)
+                AxisGridLine().foregroundStyle(Theme.border)
                 AxisValueLabel {
                     if let number = value.as(Double.self) {
                         Text(isPercent ? "\(Int(number))%" : Format.rate(bytesPerSecond: number))
+                            .foregroundStyle(Theme.muted)
                     }
                 }
             }
         }
         .chartLegend(multiSeries ? .visible : .hidden)
         .frame(height: Theme.chartHeight)
+        .chartPlotStyle { plot in
+            plot.background(Theme.base)
+                .overlay { Rectangle().strokeBorder(Theme.border, lineWidth: 1) }
+        }
         // A live feed adds one point for each second. The move is animated
         // so the chart slides instead of jumping.
         .animation(.linear(duration: 0.5), value: points.last?.at)
@@ -88,7 +93,7 @@ struct MetricChartView: View {
 
     private func color(for name: String) -> Color {
         guard multiSeries else { return tint }
-        return name == "send" ? Theme.violet : tint
+        return name == "send" ? Theme.series2 : tint
     }
 
     private var latestText: String {

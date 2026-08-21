@@ -10,7 +10,7 @@ struct AgentsLiveSection: View {
             if snapshot.agents.isEmpty {
                 Text("No agent runs now.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
             ForEach(snapshot.agents) { agent in
                 NavigationLink(value: agent) {

@@ -31,17 +31,18 @@ struct AgentRowView: View {
                 }
                 .font(.caption)
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.muted)
             }
             Image(systemName: "chevron.right")
                 .font(.footnote)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Theme.muted)
                 .padding(.top, 4)
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 12))
+        .background(Theme.raised)
+        .overlay { Rectangle().strokeBorder(Theme.border, lineWidth: Theme.borderWidth) }
         .contentShape(.rect)
     }
 }
@@ -54,7 +55,7 @@ enum AgentState {
         case "working", "running", "live": return Theme.normal
         case "blocked", "failed", "error": return Theme.critical
         case "done", "merged": return Theme.accent
-        default: return .secondary
+        default: return Theme.muted
         }
     }
 

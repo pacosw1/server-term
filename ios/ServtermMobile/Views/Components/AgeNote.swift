@@ -14,7 +14,7 @@ struct AgeNote: View {
             Image(systemName: isStale ? "clock.badge.exclamationmark" : "clock")
         }
         .font(.caption)
-        .foregroundStyle(isStale ? Theme.warning : Color.secondary)
+        .foregroundStyle(isStale ? Theme.warning : Theme.muted)
         .accessibilityLabel(text)
     }
 

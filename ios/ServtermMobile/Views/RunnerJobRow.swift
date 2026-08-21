@@ -21,17 +21,17 @@ struct RunnerJobRow: View {
                     .font(.subheadline)
                     .monospacedDigit()
                     .contentTransition(.numericText())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
             Text(job.title)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.muted)
                 .lineLimit(2)
             HStack(spacing: 10) {
                 // A job CPU above 100 percent only means more than one
                 // core, so the row does not grade it as a warning.
                 Label(Format.optionalPercent(cpu), systemImage: "cpu")
-                    .foregroundStyle(cpu == nil ? Color.secondary : Theme.accent)
+                    .foregroundStyle(cpu == nil ? Theme.muted : Theme.accent)
                 Label(Format.bytes(unsigned: job.rss), systemImage: "memorychip")
                 Label("\(job.processes)", systemImage: "square.stack.3d.up")
                 if !job.runNumber.isEmpty {
@@ -40,7 +40,7 @@ struct RunnerJobRow: View {
             }
             .font(.caption)
             .monospacedDigit()
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.muted)
             if let url = job.runURL {
                 Link("Open the run page", destination: url)
                     .font(.caption)
@@ -49,6 +49,7 @@ struct RunnerJobRow: View {
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 12))
+        .background(Theme.raised)
+        .overlay { Rectangle().strokeBorder(Theme.border, lineWidth: Theme.borderWidth) }
     }
 }

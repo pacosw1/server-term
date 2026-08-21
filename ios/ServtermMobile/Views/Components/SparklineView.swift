@@ -15,7 +15,7 @@ struct SparklineView: View {
             if points.count < 2 {
                 Text("no trend yet")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Theme.muted)
                     .frame(height: Theme.sparklineHeight, alignment: .center)
             } else {
                 Chart(points) { point in
@@ -37,7 +37,8 @@ struct SparklineView: View {
                 .chartLegend(.hidden)
                 .frame(height: Theme.sparklineHeight)
                 .padding(.vertical, 4)
-                .background(.quaternary.opacity(0.25), in: .rect(cornerRadius: 10))
+                .background(Theme.base)
+                .overlay { Rectangle().strokeBorder(Theme.border, lineWidth: 1) }
             }
         }
         .accessibilityElement(children: .ignore)

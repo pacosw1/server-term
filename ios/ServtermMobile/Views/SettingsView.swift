@@ -17,7 +17,7 @@ struct SettingsView: View {
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                 }
-                Section("Servers") {
+                Section {
                     ForEach(model.config.servers) { server in
                         Button {
                             editedServer = server
@@ -27,7 +27,7 @@ struct SettingsView: View {
                                     Text(server.name)
                                     Text(server.agentURL)
                                         .font(.footnote)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Theme.muted)
                                     ConnectionLine(
                                         transport: model.transports[server.id] ?? .idle,
                                         fetchedAt: model.servers[server.id]?.fetchedAt,
@@ -36,18 +36,22 @@ struct SettingsView: View {
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.footnote)
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(Theme.muted)
                             }
                         }
                         .buttonStyle(.plain)
                         .swipeActions {
                             Button("Remove", role: .destructive) { model.remove(server: server) }
+                            .tint(Theme.dangerFill)
                         }
                     }
                     Button("Add a server") { addsServer = true }
+                        .foregroundStyle(Theme.accent)
+                } header: {
+                    Text("Servers").foregroundStyle(Theme.muted)
                 }
 
-                Section("Orchestrator") {
+                Section {
                     if let entry = model.config.orchestrator {
                         Button {
                             editsOrchestrator = true
@@ -57,37 +61,51 @@ struct SettingsView: View {
                                     Text(entry.name)
                                     Text(entry.endpoint)
                                         .font(.footnote)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(Theme.muted)
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.footnote)
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(Theme.muted)
                             }
                         }
                         .buttonStyle(.plain)
-                        Button("Remove the orchestrator", role: .destructive) {
+                        Button("Remove the orchestrator") {
                             model.setOrchestrator(nil, token: nil)
                         }
+                        .foregroundStyle(Theme.critical)
                     } else {
                         Button("Add the orchestrator") { editsOrchestrator = true }
+                            .foregroundStyle(Theme.accent)
                     }
+                } header: {
+                    Text("Orchestrator").foregroundStyle(Theme.muted)
                 }
 
-                Section("Tools") {
+                Section {
                     Button("Detect the servterm ports") { showsDetect = true }
+                        .foregroundStyle(Theme.accent)
                     Button("Import a config") { showsImport = true }
+                        .foregroundStyle(Theme.accent)
+                } header: {
+                    Text("Tools").foregroundStyle(Theme.muted)
                 }
 
-                Section("Connections") {
+                Section {
                     Text("""
-                        The app reads a server over a live socket when it can.                         It falls back to a request every 3 seconds when the socket                         fails, and it says so on the server card.                         The orchestrator has no socket, so it always polls,                         and only while the Agents tab is open.
+                        The app reads a server over a live socket when it can. \
+                        It falls back to a request every 3 seconds when the socket \
+                        fails, and it says so on the server card. \
+                        The orchestrator has no socket, so it always polls, \
+                        and only while the Agents tab is open.
                         """)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
+                } header: {
+                    Text("Connections").foregroundStyle(Theme.muted)
                 }
 
-                Section("How the app reads your servers") {
+                Section {
                     Text("""
                         The app reads the servterm agent over your tailnet. \
                         Your phone must run Tailscale and must be in the same tailnet. \
@@ -97,7 +115,7 @@ struct SettingsView: View {
                         and port 7844 for the orchestrator.
                         """)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                     Text("""
                         The app keeps every token in the iOS Keychain. \
                         It keeps the host list in the app settings. \
@@ -105,9 +123,18 @@ struct SettingsView: View {
                         The connections use plain HTTP, because the tailnet already protects them.
                         """)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
+                } header: {
+                    Text("How the app reads your servers").foregroundStyle(Theme.muted)
                 }
             }
+            // A plain list keeps the square rows that this theme asks for.
+            // A grouped list would round every row.
+            .listStyle(.plain)
+            .environment(\.defaultMinListRowHeight, Theme.minimumTapTarget)
+            .scrollContentBackground(.hidden)
+            .background(Theme.base)
+            .listRowSeparatorTint(Theme.border)
             .navigationTitle("Settings")
             .sheet(isPresented: $addsServer) {
                 ServerEditView(server: nil)
@@ -156,7 +183,7 @@ struct ServerEditView: View {
                         .autocorrectionDisabled()
                     Text("The app stores the token in the iOS Keychain. It never writes the token to the app settings.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 }
             }
             .navigationTitle(server == nil ? "Add a server" : "Edit the server")
@@ -205,7 +232,7 @@ struct OrchestratorEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Orchestrator") {
+                Section {
                     TextField("Name", text: $name)
                     TextField("Endpoint", text: $endpoint)
                         .textInputAutocapitalization(.never)
@@ -218,7 +245,7 @@ struct OrchestratorEditView: View {
                 Section {
                     Text("The app only reads the orchestrator. It never changes the mode and it never steers an agent.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 }
             }
             .navigationTitle("Orchestrator")
@@ -285,8 +312,8 @@ struct DetectView: View {
                                         systemImage: result.reachable
                                             ? "checkmark.circle.fill" : "xmark.circle.fill")
                                 }
-                                Text(result.detail).font(.caption).foregroundStyle(.secondary)
-                                Text(result.url).font(.caption).foregroundStyle(.secondary)
+                                Text(result.detail).font(.caption).foregroundStyle(Theme.muted)
+                                Text(result.url).font(.caption).foregroundStyle(Theme.muted)
                             }
                         }
                     }
@@ -299,7 +326,7 @@ struct DetectView: View {
                         or the orchestrator after the test.
                         """)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 }
             }
             .navigationTitle("Detect")
@@ -350,7 +377,7 @@ struct ImportView: View {
                         desktop machine. Add each token by hand after the import.
                         """)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 }
             }
             .navigationTitle("Import")

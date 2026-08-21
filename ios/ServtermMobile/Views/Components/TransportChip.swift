@@ -13,7 +13,7 @@ struct TransportChip: View {
         case .polling:
             StateChip(text: "polling", color: Theme.warning, systemImage: "arrow.triangle.2.circlepath")
         case .idle:
-            StateChip(text: "idle", color: .secondary, systemImage: "pause")
+            StateChip(text: "idle", color: Theme.muted, systemImage: "pause")
         }
     }
 }

@@ -10,11 +10,13 @@ struct ServerDevicesCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Devices").font(.headline)
             ForEach(devices) { device in
-                LabeledContent {
+                HStack {
+                    Label(device.name, systemImage: device.kind == "ssd" ? "internaldrive" : "opticaldiscdrive")
+                        .foregroundStyle(Theme.muted)
+                    Spacer(minLength: 12)
                     Text(Format.bytes(unsigned: device.size))
                         .monospacedDigit()
-                } label: {
-                    Label(device.name, systemImage: device.kind == "ssd" ? "internaldrive" : "opticaldiscdrive")
+                        .foregroundStyle(Theme.text)
                 }
             }
         }

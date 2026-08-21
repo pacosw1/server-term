@@ -10,7 +10,7 @@ struct AgentsRecentSection: View {
             if snapshot.recent.isEmpty {
                 Text("No task finished yet.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
             ForEach(snapshot.recent) { item in
                 VStack(alignment: .leading, spacing: 5) {
@@ -34,11 +34,11 @@ struct AgentsRecentSection: View {
                     }
                     .font(.caption)
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
                     if !item.lastError.isEmpty {
                         Text(item.lastError)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

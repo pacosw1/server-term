@@ -14,21 +14,21 @@ struct CoreGridView: View {
             if cores.isEmpty {
                 Text("The agent reports no reading for each core.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             } else {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
                     ForEach(Array(cores.enumerated()), id: \.offset) { index, value in
                         VStack(alignment: .leading, spacing: 4) {
                             Text("#\(index)")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Theme.muted)
                             Text("\(Int(value.rounded()))%")
                                 .font(.subheadline)
                                 .monospacedDigit()
                                 .contentTransition(.numericText())
                                 .foregroundStyle(Theme.color(for: value))
                             Capsule()
-                                .fill(.quaternary)
+                                .fill(Theme.raised)
                                 .frame(height: 4)
                                 .overlay(alignment: .leading) {
                                     Capsule()

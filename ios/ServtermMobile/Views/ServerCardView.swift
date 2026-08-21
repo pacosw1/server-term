@@ -15,7 +15,7 @@ struct ServerCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
-                Circle()
+                Rectangle()
                     .fill(state.color)
                     .frame(width: 10, height: 10)
                     .padding(.top, 6)
@@ -25,7 +25,7 @@ struct ServerCardView: View {
                     if !server.location.isEmpty {
                         Text(server.location)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.muted)
                     }
                 }
                 Spacer(minLength: 8)
@@ -51,12 +51,12 @@ struct ServerCardView: View {
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.footnote)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Theme.muted)
             }
             if case .polling(let reason) = transport, reading?.error == nil {
                 Text(reason)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let error = reading?.error {

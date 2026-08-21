@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// ErrorBanner shows the last failure. The reading above it keeps its own
-/// age mark, so no screen shows an old value as a fresh one.
+/// ErrorBanner shows the last failure. It is an outlined block, not a
+/// filled one: the text then holds the AAA contrast that a solid red fill
+/// cannot give, and the heavy red border keeps it loud.
 struct ErrorBanner: View {
     let message: String
 
@@ -13,9 +14,14 @@ struct ErrorBanner: View {
         } icon: {
             Image(systemName: "exclamationmark.triangle.fill")
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(Theme.critical)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.critical.opacity(0.92), in: .rect(cornerRadius: 12))
+        .background(Theme.surface)
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.cardRadius)
+                .strokeBorder(Theme.dangerFill, lineWidth: Theme.borderWidth)
+        }
+        .clipShape(.rect(cornerRadius: Theme.cardRadius))
     }
 }

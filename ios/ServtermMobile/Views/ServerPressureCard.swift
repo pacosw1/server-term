@@ -11,7 +11,7 @@ struct ServerPressureCard: View {
             Text("Pressure").font(.headline)
             Text("The share of the time that work waited for a resource.")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.muted)
             MeterView(label: "CPU", percent: sample.pressureCPU)
             MeterView(label: "Memory", percent: sample.pressureMemory)
             MeterView(label: "Input and output", percent: sample.pressureIO)

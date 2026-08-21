@@ -23,7 +23,7 @@ struct ServerProcessCard: View {
             if processes.isEmpty {
                 Text("The agent reports no process.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
             ForEach(processes.prefix(15)) { process in
                 VStack(alignment: .leading, spacing: 3) {
@@ -41,7 +41,7 @@ struct ServerProcessCard: View {
                     }
                     Text("pid \(process.pid) · \(process.user) · \(Format.percent(process.cpu)) cpu · \(Format.bytes(unsigned: process.rss))")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 }
                 .padding(.vertical, 2)
             }

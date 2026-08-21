@@ -4,7 +4,7 @@ import SwiftUI
 struct StatTile: View {
     let label: String
     let value: String
-    var tint: Color = .primary
+    var tint: Color = Theme.text
     var systemImage: String?
 
     var body: some View {
@@ -17,7 +17,7 @@ struct StatTile: View {
                     Image(systemName: systemImage).font(.footnote)
                 }
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.muted)
             Text(value)
                 .font(.title3)
                 .bold()

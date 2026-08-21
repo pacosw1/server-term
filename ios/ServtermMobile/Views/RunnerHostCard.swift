@@ -16,13 +16,13 @@ struct RunnerHostCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(server.name).font(.headline)
                     if !server.location.isEmpty {
-                        Text(server.location).font(.subheadline).foregroundStyle(.secondary)
+                        Text(server.location).font(.subheadline).foregroundStyle(Theme.muted)
                     }
                 }
                 Spacer(minLength: 8)
                 StateChip(
                     text: "\(sample?.runners.activeJobs ?? 0) active",
-                    color: (sample?.runners.activeJobs ?? 0) > 0 ? Theme.normal : .secondary,
+                    color: (sample?.runners.activeJobs ?? 0) > 0 ? Theme.normal : Theme.muted,
                     systemImage: "bolt.fill")
             }
             if let sample {
@@ -45,7 +45,7 @@ struct RunnerHostCard: View {
                 if sample.runnerJobs.isEmpty {
                     Text("No job runs now.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 } else {
                     ForEach(RunnerJob.sortedByElapsed(sample.runnerJobs, now: sample.at)) { job in
                         RunnerJobRow(

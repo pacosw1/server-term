@@ -17,7 +17,7 @@ struct AgentsHeaderCard: View {
                         .lineLimit(1)
                     Text(snapshot.accountLabel)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 }
                 Spacer(minLength: 8)
                 StateChip(text: modeText, color: modeColor, systemImage: modeIcon)
@@ -29,7 +29,7 @@ struct AgentsHeaderCard: View {
                 StatTile(label: "Done", value: "\(snapshot.totals.done)", systemImage: "checkmark")
                 StatTile(
                     label: "Blocked", value: "\(snapshot.totals.blocked)",
-                    tint: snapshot.totals.blocked > 0 ? Theme.warning : .primary,
+                    tint: snapshot.totals.blocked > 0 ? Theme.warning : Theme.text,
                     systemImage: "exclamationmark.octagon")
             }
             Text(snapshot.costText)
@@ -53,7 +53,7 @@ struct AgentsHeaderCard: View {
             if snapshot.costIsEstimate {
                 Text("The plan has no price for each call. The daemon computes these figures, so they are an estimate, not a charge.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
             AgeNote(fetchedAt: fetchedAt, isStale: isStale)
         }
@@ -72,7 +72,7 @@ struct AgentsHeaderCard: View {
         switch snapshot.mode {
         case "fast": return Theme.normal
         case "economy": return Theme.warning
-        default: return .secondary
+        default: return Theme.muted
         }
     }
 

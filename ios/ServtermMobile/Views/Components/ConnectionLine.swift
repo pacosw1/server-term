@@ -18,7 +18,7 @@ struct ConnectionLine: View {
         }
         .font(.caption)
         .monospacedDigit()
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Theme.muted)
         .accessibilityElement(children: .combine)
     }
 

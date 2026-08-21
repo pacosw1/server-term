@@ -11,18 +11,18 @@ struct AgentTaskCard: View {
             if tasks.isEmpty {
                 Text("The agent keeps no task yet.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
             ForEach(tasks) { task in
                 Label {
                     Text(task.text)
                         .font(.subheadline)
                         .strikethrough(task.done)
-                        .foregroundStyle(task.done ? .secondary : .primary)
+                        .foregroundStyle(task.done ? Theme.muted : Theme.text)
                         .fixedSize(horizontal: false, vertical: true)
                 } icon: {
                     Image(systemName: task.done ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(task.done ? Theme.normal : .secondary)
+                        .foregroundStyle(task.done ? Theme.normal : Theme.muted)
                 }
             }
         }

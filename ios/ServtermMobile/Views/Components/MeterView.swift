@@ -13,7 +13,7 @@ struct MeterView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(label)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
                 Spacer(minLength: 8)
                 Text(Format.optionalPercent(percent))
                     .font(.subheadline)
@@ -28,7 +28,7 @@ struct MeterView: View {
             if !detail.isEmpty {
                 Text(detail)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
         }
         .animation(.easeOut(duration: 0.35), value: percent)
@@ -38,8 +38,8 @@ struct MeterView: View {
     }
 }
 
-/// MeterBar draws the rounded track and its fill. It reads its own width,
-/// because the fill must match the width of the card that holds it.
+/// MeterBar draws a square track with a hard border and a solid fill. It
+/// reads its own width, because the fill must match the card that holds it.
 private struct MeterBar: View {
     let percent: Double
 
@@ -47,10 +47,13 @@ private struct MeterBar: View {
         GeometryReader { proxy in
             let fraction = min(max(percent / 100, 0), 1)
             ZStack(alignment: .leading) {
-                Capsule().fill(.quaternary)
-                Capsule()
-                    .fill(Theme.gradient(for: percent))
-                    .frame(width: max(proxy.size.width * fraction, fraction > 0 ? 6 : 0))
+                Rectangle().fill(Theme.base)
+                Rectangle()
+                    .fill(Theme.meterFill(percent))
+                    .frame(width: max(proxy.size.width * fraction, fraction > 0 ? 4 : 0))
+            }
+            .overlay {
+                Rectangle().strokeBorder(Theme.border, lineWidth: 1)
             }
         }
         .frame(height: Theme.meterHeight)

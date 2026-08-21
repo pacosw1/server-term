@@ -25,5 +25,10 @@ struct RootView: View {
                 SettingsView()
             }
         }
+        // The theme is dark by design, so the app does not follow the
+        // appearance of the phone. A light copy of this palette would be a
+        // different theme, not the same one.
+        .preferredColorScheme(.dark)
+        .tint(Theme.accent)
     }
 }

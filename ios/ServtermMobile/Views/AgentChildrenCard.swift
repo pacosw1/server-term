@@ -11,11 +11,11 @@ struct AgentChildrenCard: View {
             Text("Subagents").font(.headline)
             Text("\(agent.childrenRunning) run · \(agent.childrenDone) done · \(agent.childrenFailed) failed")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.muted)
             if children.isEmpty {
                 Text("This agent started no subagent.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
             ForEach(children) { child in
                 VStack(alignment: .leading, spacing: 4) {
@@ -29,12 +29,12 @@ struct AgentChildrenCard: View {
                     }
                     Text(child.task)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                         .lineLimit(3)
                     Text("\(Format.duration(seconds: Double(child.elapsedSeconds))) · in \(child.inputTokens) · out \(child.outputTokens)")
                         .font(.caption)
                         .monospacedDigit()
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                 }
                 .padding(.vertical, 6)
             }

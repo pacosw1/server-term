@@ -1,28 +1,19 @@
 import SwiftUI
 
-/// CardModifier gives every block the same shape, so the screens read as
-/// one design in the light appearance and in the dark appearance.
+/// CardModifier gives every block the same shape: a flat card on the page,
+/// sharp 2 point corners, and a heavy 2 pixel border. There is no shadow
+/// and no glow, because the theme is flat.
 struct CardModifier: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-
     func body(content: Content) -> some View {
         content
             .padding(Theme.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(fill, in: .rect(cornerRadius: Theme.cardRadius))
-            .shadow(color: .black.opacity(colorScheme == .dark ? 0 : 0.07), radius: 10, y: 3)
+            .background(Theme.surface)
             .overlay {
                 RoundedRectangle(cornerRadius: Theme.cardRadius)
-                    .strokeBorder(.quaternary, lineWidth: 1)
+                    .strokeBorder(Theme.border, lineWidth: Theme.borderWidth)
             }
-    }
-}
-
-extension CardModifier {
-    /// fill keeps the card above the page: a white card in the light
-    /// appearance, and a lighter grey card in the dark appearance.
-    private var fill: AnyShapeStyle {
-        colorScheme == .dark ? AnyShapeStyle(.background.secondary) : AnyShapeStyle(.background)
+            .clipShape(.rect(cornerRadius: Theme.cardRadius))
     }
 }
 
@@ -32,14 +23,10 @@ extension View {
     }
 }
 
-/// PageBackground puts a soft accent wash behind every screen, so the dark
-/// appearance looks chosen instead of plain grey.
+/// PageBackground is one flat colour. The plain backdrop carries no wash
+/// and no gradient.
 struct PageBackground: View {
     var body: some View {
-        LinearGradient(
-            colors: [Theme.accent.opacity(0.10), .clear],
-            startPoint: .top, endPoint: .center)
-            .ignoresSafeArea()
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        Theme.base.ignoresSafeArea()
     }
 }

@@ -10,7 +10,7 @@ struct ServerStorageCard: View {
             if disks.isEmpty {
                 Text("The agent reports no disk.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
             }
             ForEach(disks) { disk in
                 MeterView(

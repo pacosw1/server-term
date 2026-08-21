@@ -29,7 +29,7 @@ struct ServerDetailView: View {
                         MetricChartView(
                             title: "Memory",
                             points: MetricSeries.downsample(MetricSeries.memory(from: history), to: 120),
-                            tint: Theme.violet)
+                            tint: Theme.series2)
                         MetricChartView(
                             title: "Network",
                             points: MetricSeries.downsample(MetricSeries.network(from: history), to: 240),
@@ -49,7 +49,7 @@ struct ServerDetailView: View {
                         ServerProcessCard(sample: sample)
                     } else {
                         Text("The app has no reading of this server yet.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.muted)
                             .card()
                     }
                 }
