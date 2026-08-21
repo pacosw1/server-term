@@ -47,7 +47,19 @@ public struct SSHRequest: Sendable {
 public enum SSHClientError: Error, Equatable {
     case hostKeyChanged(String)
     case authenticationFailed
+    /// terminalRefused means the host would not give this session a
+    /// terminal. tmux cannot attach without one.
+    case terminalRefused
     case transport(String)
+
+    public var message: String {
+        switch self {
+        case .hostKeyChanged(let warning): return warning
+        case .authenticationFailed: return "the host refused the key of this phone"
+        case .terminalRefused: return "the host refused a terminal for this session"
+        case .transport(let detail): return detail
+        }
+    }
 }
 
 /// NIOSSHClient speaks SSH to the host's own sshd. It performs no command
@@ -109,6 +121,8 @@ public actor NIOSSHClient: SSHConnecting {
             case .authenticationFailed:
                 continuation.yield(
                     .state(.disconnected(reason: "the host refused the key of this phone")))
+            case .terminalRefused:
+                continuation.yield(.state(.disconnected(reason: error.message)))
             case .transport(let detail):
                 continuation.yield(.state(.disconnected(reason: detail)))
             }
@@ -149,18 +163,20 @@ public actor NIOSSHClient: SSHConnecting {
         }
         let child = try await promise.futureResult.get()
 
-        let pty = SSHChannelRequestEvent.PseudoTerminalRequest(
-            wantReply: true,
-            term: "xterm-256color",
-            terminalCharacterWidth: request.columns,
-            terminalRowHeight: request.rows,
-            terminalPixelWidth: 0,
-            terminalPixelHeight: 0,
-            terminalModes: SSHTerminalModes([:]))
-        try await child.triggerUserOutboundEvent(pty)
-
-        try await child.triggerUserOutboundEvent(
-            SSHChannelRequestEvent.ExecRequest(command: request.plan.command, wantReply: true))
+        let requests = SSHChannelRequests.attach(
+            command: request.plan.command, columns: request.columns, rows: request.rows)
+        for (index, event) in requests.enumerated() {
+            do {
+                try await child.triggerUserOutboundEvent(event)
+            } catch {
+                // Both requests carry wantReply, so a refusal arrives here
+                // rather than passing quietly. A refused terminal has its
+                // own name: without it tmux cannot attach at all.
+                try? await child.close()
+                throw index == 0 ? SSHClientError.terminalRefused : SSHClientError.transport(
+                    "the host refused to run the session command")
+            }
+        }
         return child
     }
 
@@ -200,6 +216,29 @@ public actor NIOSSHClient: SSHConnecting {
         if let error = error as? SSHClientError, case .transport(let detail) = error { return detail }
         if let error = error as? NIOSSHError { return String(describing: error) }
         return error.localizedDescription
+    }
+}
+
+/// SSHChannelRequests builds what one channel asks the host for, in order.
+///
+/// The attach channel asks for a pseudo terminal FIRST and then for its
+/// command. tmux refuses to attach without one, with "open terminal
+/// failed: not a terminal". A channel that only reads asks for no terminal
+/// at all, because a terminal would fold and colour the output the app
+/// parses.
+public enum SSHChannelRequests {
+    public static func attach(command: String, columns: Int, rows: Int) -> [Any] {
+        [
+            SSHChannelRequestEvent.PseudoTerminalRequest(
+                wantReply: true,
+                term: "xterm-256color",
+                terminalCharacterWidth: columns,
+                terminalRowHeight: rows,
+                terminalPixelWidth: 0,
+                terminalPixelHeight: 0,
+                terminalModes: SSHTerminalModes([:])),
+            SSHChannelRequestEvent.ExecRequest(command: command, wantReply: true),
+        ]
     }
 }
 

@@ -74,12 +74,14 @@ final class SessionsModel {
             actionError = Self.reason(error)
             return
         }
-        guard let tmux, let command = TmuxCommand.attach(session: name, tmux: tmux) else {
+        // The detached form is the one that works here. tmux new -A -s
+        // NAME needs a terminal and answers "open terminal failed: not a
+        // terminal" on a reading channel, which has none. Only the shell
+        // screen attaches, and that channel asks for a terminal first.
+        guard let tmux, let command = TmuxCommand.create(session: name, tmux: tmux) else {
             actionError = "The app found no tmux on this host."
             return
         }
-        // tmux new -A -s NAME inside a non-interactive command creates the
-        // session and returns, because there is no terminal to attach to.
         await perform(request: request, command: command, server: server)
     }
 
@@ -134,13 +136,7 @@ final class SessionsModel {
     }
 
     private static func reason(_ error: any Error) -> String {
-        if let error = error as? SSHClientError {
-            switch error {
-            case .authenticationFailed: return "the host refused the key of this phone"
-            case .hostKeyChanged(let warning): return warning
-            case .transport(let detail): return detail
-            }
-        }
+        if let error = error as? SSHClientError { return error.message }
         return error.localizedDescription
     }
 }

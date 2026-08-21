@@ -33,9 +33,22 @@ public enum TmuxCommand {
 
     /// attach runs the resolved tmux binary, so no command depends on the
     /// PATH of a non-interactive session.
+    ///
+    /// This form needs a terminal: tmux answers "open terminal failed: not
+    /// a terminal" without one. It belongs on the interactive channel only,
+    /// which asks for a pseudo terminal first. To make a session from a
+    /// reading channel, use create.
     public static func attach(session: String, tmux: String) -> String? {
         guard TmuxSessionName.isValid(session) else { return nil }
         return tmux + " new -A -s " + session
+    }
+
+    /// create makes a session and leaves it running, with no terminal of
+    /// its own. The detached form is the one that works over a plain
+    /// command channel.
+    public static func create(session: String, tmux: String) -> String? {
+        guard TmuxSessionName.isValid(session) else { return nil }
+        return tmux + " new-session -d -s " + session
     }
 
     public static func listSessions(tmux: String) -> String {
