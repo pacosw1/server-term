@@ -972,6 +972,10 @@ func isRemoteDesktopKey(key string) bool {
 }
 func (m Model) sendDesktopKey(index int, combo string) tea.Cmd {
 	return func() tea.Msg {
+		if stream := m.desktopStreams[index]; stream != nil {
+			_ = stream.Key(combo)
+			return nil
+		}
 		d := m.desktopForServer(index)
 		if d == nil {
 			return nil
@@ -992,6 +996,10 @@ func (m Model) sendDesktopKey(index int, combo string) tea.Cmd {
 }
 func (m Model) sendDesktopClick(index, x, y int, right bool) tea.Cmd {
 	return func() tea.Msg {
+		if stream := m.desktopStreams[index]; stream != nil {
+			_ = stream.Click(x, y, right)
+			return nil
+		}
 		d := m.desktopForServer(index)
 		if d == nil {
 			return nil

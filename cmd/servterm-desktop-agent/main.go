@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"github.com/coder/websocket"
 	"github.com/franciscosainzwilliams/server-term/internal/desktopclient"
+	vnc "github.com/mitchellh/go-vnc"
 	"net"
 	"net/http"
 	"os"
@@ -159,18 +160,54 @@ func serveStream(w http.ResponseWriter, r *http.Request, host string, port int, 
 		return
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "stream closed")
-	session, err := desktopclient.NewCaptureSession(r.Context(), host, port, password)
+	streamCtx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	session, err := desktopclient.NewCaptureSession(streamCtx, host, port, password)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
 	defer session.Close()
+	go func() {
+		for {
+			_, data, e := conn.Read(streamCtx)
+			if e != nil {
+				cancel()
+				return
+			}
+			var control struct {
+				Type   string `json:"type"`
+				Combo  string `json:"combo"`
+				X      int    `json:"x"`
+				Y      int    `json:"y"`
+				Button int    `json:"button"`
+			}
+			if json.Unmarshal(data, &control) != nil {
+				continue
+			}
+			switch control.Type {
+			case "key":
+				if key, ok := keySym(control.Combo); ok {
+					_ = session.Key(key)
+				}
+			case "click":
+				if control.X >= 0 && control.Y >= 0 {
+					mask := vnc.ButtonMask(1)
+					if control.Button == 3 {
+						mask = 4
+					}
+					_ = session.Pointer(uint16(control.X), uint16(control.Y), mask)
+					_ = session.Pointer(uint16(control.X), uint16(control.Y), 0)
+				}
+			}
+		}
+	}()
 	for {
-		frame, err := session.Next(r.Context())
+		frame, err := session.Next(streamCtx)
 		if err != nil {
 			return
 		}
-		if err := conn.Write(r.Context(), websocket.MessageBinary, frame); err != nil {
+		if err := conn.Write(streamCtx, websocket.MessageBinary, frame); err != nil {
 			return
 		}
 	}

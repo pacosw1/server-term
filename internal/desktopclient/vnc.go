@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/franciscosainzwilliams/server-term/internal/config"
 	vnc "github.com/mitchellh/go-vnc"
@@ -101,6 +102,7 @@ type CaptureSession struct {
 	messages chan vnc.ServerMessage
 	img      *image.RGBA
 	first    bool
+	mu       sync.Mutex
 }
 
 func NewCaptureSession(ctx context.Context, host string, port int, password string) (*CaptureSession, error) {
@@ -141,6 +143,8 @@ func (s *CaptureSession) Close() {
 	}
 }
 func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.first {
 		if err := s.client.FramebufferUpdateRequest(false, 0, 0, s.client.FrameBufferWidth, s.client.FrameBufferHeight); err != nil {
 			return nil, err
@@ -178,6 +182,19 @@ func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+func (s *CaptureSession) Key(keysym uint32) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.client.KeyEvent(keysym, true); err != nil {
+		return err
+	}
+	return s.client.KeyEvent(keysym, false)
+}
+func (s *CaptureSession) Pointer(x, y uint16, mask vnc.ButtonMask) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.client.PointerEvent(mask, x, y)
 }
 
 func sendVNC(ctx context.Context, host string, port int, password string, fn func(*vnc.ClientConn) error) error {

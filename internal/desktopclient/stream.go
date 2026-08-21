@@ -2,6 +2,7 @@ package desktopclient
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/coder/websocket"
@@ -29,6 +30,23 @@ func OpenStream(ctx context.Context, desktop config.Desktop, token string) (*Str
 func (s *Stream) Read(ctx context.Context) ([]byte, error) {
 	_, b, err := s.conn.Read(ctx)
 	return b, err
+}
+func (s *Stream) send(v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return s.conn.Write(context.Background(), websocket.MessageText, b)
+}
+func (s *Stream) Key(combo string) error {
+	return s.send(map[string]any{"type": "key", "combo": combo})
+}
+func (s *Stream) Click(x, y int, right bool) error {
+	button := 1
+	if right {
+		button = 3
+	}
+	return s.send(map[string]any{"type": "click", "x": x, "y": y, "button": button})
 }
 func (s *Stream) Close() {
 	if s != nil {
