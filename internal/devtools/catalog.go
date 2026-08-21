@@ -13,6 +13,7 @@ type Tool struct{ ID, Description, Command, LinuxPackage, MacPackage string }
 
 var Catalog = []Tool{
 	{"git", "source control", "git", "git", "git"}, {"gh", "GitHub CLI", "gh", "gh", "gh"}, {"curl", "HTTP client", "curl", "curl", "curl"}, {"wget", "HTTP downloader", "wget", "wget", "wget"}, {"jq", "JSON processor", "jq", "jq", "jq"}, {"ripgrep", "fast code search", "rg", "ripgrep", "ripgrep"}, {"fd", "fast file finder", "fd", "fd-find", "fd"}, {"fzf", "fuzzy finder", "fzf", "fzf", "fzf"}, {"tmux", "terminal multiplexer", "tmux", "tmux", "tmux"}, {"htop", "process viewer", "htop", "htop", "htop"}, {"btop", "resource viewer", "btop", "btop", "btop"}, {"tree", "directory tree", "tree", "tree", "tree"}, {"unzip", "ZIP extractor", "unzip", "unzip", "unzip"}, {"python", "Python runtime", "python3", "python3", "python"}, {"node", "Node.js runtime", "node", "nodejs", "node"}, {"npm", "Node package manager", "npm", "npm", "npm"}, {"go", "Go toolchain", "go", "golang", "go"}, {"zsh", "Z shell", "zsh", "zsh", "zsh"}, {"neovim", "terminal editor", "nvim", "neovim", "neovim"}, {"shellcheck", "shell linter", "shellcheck", "shellcheck", "shellcheck"},
+	{"playwright", "browser automation CLI", "playwright", "", ""}, {"chromium", "Chromium browser", "chromium", "chromium", "chromium"}, {"docker", "container engine", "docker", "docker.io", "docker"}, {"docker-compose", "Compose plugin", "docker-compose", "docker-compose", "docker-compose"}, {"make", "build automation", "make", "make", "make"}, {"gcc", "GNU C compiler", "gcc", "gcc", "gcc"}, {"clang", "LLVM C compiler", "clang", "clang", "llvm"}, {"rust", "Rust toolchain", "cargo", "rustc", "rust"}, {"pnpm", "fast Node package manager", "pnpm", "", "pnpm"}, {"yarn", "Node package manager", "yarn", "yarnpkg", "yarn"},
 }
 
 func Find(id string) (Tool, bool) {
@@ -56,6 +57,21 @@ func Install(ctx context.Context, server config.Server, id string, remove bool) 
 	action := "install"
 	if remove {
 		action = "remove"
+	}
+	if id == "playwright" {
+		if remove {
+			return ssh(ctx, server, "npm uninstall -g playwright")
+		}
+		return ssh(ctx, server, "npm install -g playwright && playwright install chromium")
+	}
+	if id == "pnpm" {
+		if remove {
+			return ssh(ctx, server, "npm uninstall -g pnpm")
+		}
+		return ssh(ctx, server, "npm install -g pnpm")
+	}
+	if pkg == "" {
+		return "", fmt.Errorf("%s requires its ecosystem installer; no safe package command is configured", id)
 	}
 	script := fmt.Sprintf("set -eu; if command -v apt-get >/dev/null 2>&1; then sudo -n apt-get %s -y %s; elif command -v brew >/dev/null 2>&1; then brew %s %s; else echo 'no supported package manager' >&2; exit 2; fi", action, pkg, action, pkg)
 	return ssh(ctx, server, script)
