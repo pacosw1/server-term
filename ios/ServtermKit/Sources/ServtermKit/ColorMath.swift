@@ -84,7 +84,10 @@ public enum Grade: Sendable, Equatable {
     case warning
     case critical
 
-    public static let warningLevel: Double = 70
+    /// The terminal fills a bar yellow at 75 and red at 90. The app grades
+    /// at the same two levels, so a colour on the phone and a colour in
+    /// the terminal always mean the same thing.
+    public static let warningLevel: Double = 75
     public static let criticalLevel: Double = 90
 
     public static func of(percent: Double?) -> Grade {

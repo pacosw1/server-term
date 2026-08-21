@@ -7,6 +7,9 @@ struct MeterView: View {
     let label: String
     let percent: Double?
     var detail: String = ""
+    /// cells is the width of the meter in counted blocks. The terminal
+    /// uses 24 for a plan or a disk meter and 10 for a compact one.
+    var cells: Int = BarMeter.wideCells
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -23,7 +26,7 @@ struct MeterView: View {
                     .foregroundStyle(Theme.color(for: percent))
             }
             if let percent {
-                MeterBar(percent: percent)
+                SegmentedMeter(percent: percent, cells: cells, height: Theme.meterHeight)
             }
             if !detail.isEmpty {
                 Text(detail)
@@ -35,27 +38,5 @@ struct MeterView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityValue(percent == nil ? "unknown" : Format.percent(percent!) + " " + detail)
-    }
-}
-
-/// MeterBar draws a square track with a hard border and a solid fill. It
-/// reads its own width, because the fill must match the card that holds it.
-private struct MeterBar: View {
-    let percent: Double
-
-    var body: some View {
-        GeometryReader { proxy in
-            let fraction = min(max(percent / 100, 0), 1)
-            ZStack(alignment: .leading) {
-                Rectangle().fill(Theme.base)
-                Rectangle()
-                    .fill(Theme.meterFill(percent))
-                    .frame(width: max(proxy.size.width * fraction, fraction > 0 ? 4 : 0))
-            }
-            .overlay {
-                Rectangle().strokeBorder(Theme.border, lineWidth: 1)
-            }
-        }
-        .frame(height: Theme.meterHeight)
     }
 }

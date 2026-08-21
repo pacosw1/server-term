@@ -22,18 +22,30 @@ struct ServerDetailView: View {
                             isStale: reading?.error != nil,
                             transport: model.transports[server.id] ?? .idle,
                             roundTrip: model.roundTrips[server.id])
-                        MetricChartView(
+                        BlockChartCard(
                             title: "CPU",
-                            points: MetricSeries.downsample(MetricSeries.cpu(from: history), to: 120),
-                            tint: Theme.accent)
-                        MetricChartView(
+                            columns: SparkBars.columns(
+                                from: history, window: 36, mode: .spread) { $0.cpuPercent },
+                            latest: sample.cpuPercent,
+                            isPercent: true)
+                        BlockChartCard(
                             title: "Memory",
-                            points: MetricSeries.downsample(MetricSeries.memory(from: history), to: 120),
-                            tint: Theme.series2)
-                        MetricChartView(
-                            title: "Network",
-                            points: MetricSeries.downsample(MetricSeries.network(from: history), to: 240),
-                            tint: Theme.normal, isPercent: false, multiSeries: true)
+                            columns: SparkBars.columns(
+                                from: history, window: 36, mode: .spread) { $0.memoryPercent ?? 0 },
+                            latest: sample.memoryPercent,
+                            isPercent: true)
+                        BlockChartCard(
+                            title: "Network in",
+                            columns: SparkBars.columns(
+                                from: history, window: 36, scale: .relative, mode: .spread) { $0.netRxRate },
+                            latest: sample.netRxRate,
+                            isPercent: false)
+                        BlockChartCard(
+                            title: "Network out",
+                            columns: SparkBars.columns(
+                                from: history, window: 36, scale: .relative, mode: .spread) { $0.netTxRate },
+                            latest: sample.netTxRate,
+                            isPercent: false)
                         CoreGridView(cores: sample.corePercent)
                         ServerStorageCard(disks: sample.sortedDisks)
                         if !sample.devices.isEmpty {

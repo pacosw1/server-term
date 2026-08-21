@@ -64,8 +64,8 @@ struct ColorMathTests {
     func grade() {
         #expect(Grade.of(percent: nil) == .unknown)
         #expect(Grade.of(percent: 0) == .normal)
-        #expect(Grade.of(percent: 69.9) == .normal)
-        #expect(Grade.of(percent: 70) == .warning)
+        #expect(Grade.of(percent: 74.9) == .normal)
+        #expect(Grade.of(percent: 75) == .warning)
         #expect(Grade.of(percent: 89.9) == .warning)
         #expect(Grade.of(percent: 90) == .critical)
         #expect(Grade.of(percent: 150) == .critical)

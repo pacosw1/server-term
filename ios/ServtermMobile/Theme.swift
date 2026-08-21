@@ -36,7 +36,7 @@ enum Theme {
 
     /// muted is the faded body text. It is lifted until it clears AAA on a
     /// card, the tighter of the two backgrounds.
-    private static let mutedRGB = ColorMath.ensureContrast(
+    static let mutedRGB = ColorMath.ensureContrast(
         ColorMath.mix(textRGB, baseRGB, 0.45), on: surfaceRGB, towards: textRGB, target: bodyTarget)
     /// raised is a lifted neutral for a chip or an inner row.
     private static let raisedRGB = ColorMath.mix(surfaceRGB, textRGB, 0.08)
@@ -102,6 +102,10 @@ enum Theme {
     static func color(for percent: Double?) -> Color {
         color(for: Grade.of(percent: percent))
     }
+
+    /// dimTrack is the empty cell of a meter. It is the muted colour at a
+    /// low alpha, never a fake black, so the whole scale stays visible.
+    static let dimTrack = Color(mutedRGB).opacity(0.28)
 
     /// fillColor is for a bar, a dot or any block that carries no text on
     /// it. It uses the raw seed colour, which is stronger than the lifted

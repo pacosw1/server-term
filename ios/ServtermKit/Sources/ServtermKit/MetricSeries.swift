@@ -58,38 +58,6 @@ public enum MetricSeries {
             .map { MetricPoint(at: $0.at, value: $0.runners.cpu, name: "runners") }
     }
 
-    /// downsample thins a long series so a chart draws fewer marks. It
-    /// keeps the first point and the last point, so the window does not
-    /// move when the chart redraws.
-    public static func downsample(_ points: [MetricPoint], to limit: Int) -> [MetricPoint] {
-        guard limit > 1, points.count > limit else { return points }
-        let step = Double(points.count - 1) / Double(limit - 1)
-        var thin: [MetricPoint] = []
-        thin.reserveCapacity(limit)
-        for index in 0..<limit {
-            thin.append(points[Int((Double(index) * step).rounded())])
-        }
-        if thin.last != points.last, let last = points.last { thin[thin.count - 1] = last }
-        return thin
-    }
-
-    /// paddedDomain frames a small chart around its own data, so a quiet
-    /// series still shows its shape. It never leaves the allowed range and
-    /// it always keeps some height.
-    public static func paddedDomain(
-        _ points: [MetricPoint], padding: Double, upperLimit: Double
-    ) -> ClosedRange<Double> {
-        let values = points.map(\.value)
-        guard let low = values.min(), let high = values.max() else { return 0...upperLimit }
-        var lower = max(0, low - padding)
-        var upper = min(upperLimit, high + padding)
-        if upper <= lower {
-            lower = max(0, lower - 1)
-            upper = min(upperLimit, lower + 1)
-        }
-        return lower...upper
-    }
-
     /// append adds one point to a rolling window. It replaces a point that
     /// carries the same time, so a repeated reading makes no step.
     public static func append(_ point: MetricPoint, to points: [MetricPoint], limit: Int) -> [MetricPoint] {

@@ -100,16 +100,4 @@ struct DetailFieldTests {
         #expect(RunnerJob.sortedByElapsed([young, old], now: now).map(\.workerPID) == [2, 1])
     }
 
-    @Test("a chart series with too many points is thinned, and keeps its ends")
-    func downsample() {
-        let points = (0..<500).map {
-            MetricPoint(at: Date(timeIntervalSince1970: TimeInterval($0)), value: Double($0))
-        }
-        let thin = MetricSeries.downsample(points, to: 100)
-        #expect(thin.count <= 100)
-        #expect(thin.first == points.first)
-        #expect(thin.last == points.last)
-        #expect(MetricSeries.downsample(points, to: 0).count == points.count)
-        #expect(MetricSeries.downsample(Array(points.prefix(10)), to: 100).count == 10)
-    }
 }

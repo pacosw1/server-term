@@ -45,7 +45,9 @@ struct ServerCardView: View {
                     label: "Disk", value: Format.optionalPercent(sample?.primaryDisk?.usedPercent),
                     tint: Theme.color(for: sample?.primaryDisk?.usedPercent))
             }
-            SparklineView(points: trend, tint: Theme.accent, label: "CPU")
+            BlockTrendView(
+                columns: SparkBars.columns(points: trend, window: SparkBars.window),
+                label: "CPU", height: 40, columnWidth: 10)
             HStack {
                 AgeNote(fetchedAt: reading?.fetchedAt, isStale: isStale)
                 Spacer(minLength: 8)

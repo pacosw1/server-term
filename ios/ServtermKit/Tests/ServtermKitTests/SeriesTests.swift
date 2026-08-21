@@ -74,32 +74,7 @@ struct SeriesTests {
         #expect(points.map(\.value) == [2])
     }
 
-    @Test("the sparkline scale frames the data instead of the whole range")
-    func paddedDomain() {
-        let flat = [MetricPoint(at: Date(), value: 20), MetricPoint(at: Date(), value: 20)]
-        let range = MetricSeries.paddedDomain(flat, padding: 5, upperLimit: 100)
-        #expect(range.lowerBound == 15)
-        #expect(range.upperBound == 25)
-    }
 
-    @Test("the scale never leaves the allowed range")
-    func clampedDomain() {
-        let high = [MetricPoint(at: Date(), value: 99), MetricPoint(at: Date(), value: 2)]
-        let range = MetricSeries.paddedDomain(high, padding: 5, upperLimit: 100)
-        #expect(range.lowerBound == 0)
-        #expect(range.upperBound == 100)
-    }
 
-    @Test("an empty series keeps the whole scale")
-    func emptyDomain() {
-        let range = MetricSeries.paddedDomain([], padding: 5, upperLimit: 100)
-        #expect(range == 0...100)
-    }
 
-    @Test("the scale always has a height")
-    func neverFlat() {
-        let zero = [MetricPoint(at: Date(), value: 0), MetricPoint(at: Date(), value: 0)]
-        let range = MetricSeries.paddedDomain(zero, padding: 0, upperLimit: 100)
-        #expect(range.upperBound > range.lowerBound)
-    }
 }
