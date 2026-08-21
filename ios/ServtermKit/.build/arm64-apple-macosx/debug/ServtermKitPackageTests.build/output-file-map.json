@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/primary.swiftdeps"
+  },
+  "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.derived/runner.swift": {
+    "dependencies": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/runner.d",
+    "object": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/runner.swiftdeps",
+    "diagnostics": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/runner.dia"
+  }
+}

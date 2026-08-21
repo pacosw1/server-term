@@ -100,6 +100,7 @@ func tools() []tool {
 		{Name: "servterm_list_desktops", Description: "List configured desktop agents and capabilities without credentials.", InputSchema: schema(map[string]any{}, nil)},
 		{Name: "servterm_desktop_status", Description: "Read authenticated desktop-agent capability status.", InputSchema: schema(map[string]any{"desktop": map[string]any{"type": "string"}}, []string{"desktop"})},
 		{Name: "servterm_nvr_status", Description: "Read a configured read-only NVR widget snapshot.", InputSchema: schema(map[string]any{"widget": map[string]any{"type": "string"}}, []string{"widget"})},
+		{Name: "servterm_orchestrator_status", Description: "Read a configured read-only agent orchestrator snapshot; never starts, stops, or steers agents.", InputSchema: schema(map[string]any{"widget": map[string]any{"type": "string"}}, []string{"widget"})},
 	}
 }
 
@@ -212,6 +213,22 @@ func (s Server) call(ctx context.Context, name string, args map[string]any) (any
 				return nil, err
 			}
 			return textResult(widget.FetchNVR(ctx, w, token))
+		}
+		return nil, fmt.Errorf("unknown widget %q", name)
+	case "servterm_orchestrator_status":
+		name := stringArg(args, "widget")
+		for _, w := range s.Config.Widgets {
+			if w.Name != name {
+				continue
+			}
+			if w.Type != "orchestrator" {
+				return nil, fmt.Errorf("widget %q is not an orchestrator", name)
+			}
+			token, err := credential(w.TokenEnv, w.TokenFile)
+			if err != nil {
+				return nil, err
+			}
+			return textResult(widget.FetchOrchestrator(ctx, w, token))
 		}
 		return nil, fmt.Errorf("unknown widget %q", name)
 	default:

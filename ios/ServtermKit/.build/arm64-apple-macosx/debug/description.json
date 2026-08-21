@@ -1,0 +1,830 @@
+{
+  "builtTestProducts" : [
+    {
+      "binaryPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.xctest/Contents/MacOS/ServtermKitPackageTests",
+      "packagePath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit",
+      "productName" : "ServtermKitPackageTests"
+    }
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.ServtermKit-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/sources",
+      "importPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AgentModels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AppConfig.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Format.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/OrchestratorModels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Prober.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/ServtermAPI.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/TokenStore.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "ServtermKit",
+      "moduleOutputPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules/ServtermKit.swiftmodule",
+      "objects" : [
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AgentModels.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AppConfig.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Format.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/OrchestratorModels.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Prober.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/ServtermAPI.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/TokenStore.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j16",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/include/ServtermKit-Swift.h",
+        "-swift-version",
+        "6",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "servtermkit"
+      ],
+      "outputFileMapPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AgentModels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AppConfig.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Format.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/OrchestratorModels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Prober.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/ServtermAPI.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/TokenStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules/ServtermKit.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AgentModels.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AppConfig.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Format.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/OrchestratorModels.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Prober.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/ServtermAPI.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/TokenStore.swift"
+      ],
+      "tempsPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.ServtermKitPackageTests-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/sources",
+      "importPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.derived/runner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules/ServtermKitTests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "ServtermKitPackageTests",
+      "moduleOutputPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules/ServtermKitPackageTests.swiftmodule",
+      "objects" : [
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/runner.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j16",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/include/ServtermKitPackageTests-Swift.h",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "servtermkit"
+      ],
+      "outputFileMapPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules/ServtermKitPackageTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.derived/runner.swift"
+      ],
+      "tempsPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.ServtermKitTests-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/sources",
+      "importPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/APITests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/ConfigTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/DecodingTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FakeHTTPClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FixtureJSON.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FormattingTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/ProbeTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules/ServtermKit.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "ServtermKitTests",
+      "moduleOutputPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules/ServtermKitTests.swiftmodule",
+      "objects" : [
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/APITests.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/ConfigTests.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/DecodingTests.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/FakeHTTPClient.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/FixtureJSON.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/FormattingTests.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/ProbeTests.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j16",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-swift-version",
+        "6",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "servtermkit"
+      ],
+      "outputFileMapPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/APITests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/ConfigTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/DecodingTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/FakeHTTPClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/FixtureJSON.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/FormattingTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/ProbeTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules/ServtermKitTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/APITests.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/ConfigTests.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/DecodingTests.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FakeHTTPClient.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FixtureJSON.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FormattingTests.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/ProbeTests.swift"
+      ],
+      "tempsPath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "ServtermKit" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "ServtermKit",
+      "-package-name",
+      "servtermkit",
+      "-c",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AgentModels.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AppConfig.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Format.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/OrchestratorModels.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Prober.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/ServtermAPI.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/TokenStore.swift",
+      "-I",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j16",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/include/ServtermKit-Swift.h",
+      "-swift-version",
+      "6",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "servtermkit",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "ServtermKitPackageTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "ServtermKitPackageTests",
+      "-package-name",
+      "servtermkit",
+      "-c",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.derived/runner.swift",
+      "-I",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j16",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/include/ServtermKitPackageTests-Swift.h",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "servtermkit",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "ServtermKitTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "ServtermKitTests",
+      "-package-name",
+      "servtermkit",
+      "-c",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/APITests.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/ConfigTests.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/DecodingTests.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FakeHTTPClient.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FixtureJSON.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FormattingTests.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/ProbeTests.swift",
+      "-I",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j16",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-swift-version",
+      "6",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "servtermkit",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "ServtermKit" : [
+
+    ],
+    "ServtermKitPackageTests" : [
+      "ServtermKitTests",
+      "ServtermKit"
+    ],
+    "ServtermKitTests" : [
+      "ServtermKit"
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+    "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.derived/runner.swift" : {
+      "inputs" : [
+
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.derived/runner.swift"
+        }
+      ]
+    }
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AgentModels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AppConfig.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Format.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/OrchestratorModels.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Prober.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/ServtermAPI.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/TokenStore.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/sources"
+    },
+    "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.derived/runner.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/sources"
+    },
+    "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AgentModels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AppConfig.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Format.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/OrchestratorModels.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Prober.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/ServtermAPI.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/TokenStore.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/APITests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/ConfigTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/DecodingTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/FakeHTTPClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/FixtureJSON.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/FormattingTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/ProbeTests.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitPackageTests.product/Objects.LinkFileList"
+    },
+    "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/APITests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/ConfigTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/DecodingTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FakeHTTPClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FixtureJSON.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/FormattingTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Tests/ServtermKitTests/ProbeTests.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKitTests.build/sources"
+    },
+    "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+    }
+  }
+}

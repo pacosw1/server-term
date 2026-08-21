@@ -26,3 +26,14 @@ servers:
     # Once servterm-agent is installed, these switch this host to live streaming:
     # agent_url: http://100.64.0.10:7843
     # token_file: ~/.config/servterm/tokens/example-production
+
+# Read-only external status providers, shown as extra tabs in a server's
+# detail view. See README.md for the full list of provider types.
+# widgets:
+#   - name: pitsa-agents
+#     type: orchestrator
+#     endpoint: http://100.93.34.43:7844
+#     token_file: ~/Library/Application Support/servterm/tokens/pitsa-agents
+#     # The widget shows only on the server that runs it. servterm matches the
+#     # endpoint host to a server address. Set host when they differ:
+#     # host: 100.93.34.43

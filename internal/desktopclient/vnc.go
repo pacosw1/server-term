@@ -55,9 +55,14 @@ func Capture(ctx context.Context, host string, port int, password string) ([]byt
 		return nil, err
 	}
 	defer client.Close()
-	if err := client.SetPixelFormat(&vnc.PixelFormat{BPP: 32, Depth: 24, BigEndian: false, TrueColor: true, RedMax: 255, GreenMax: 255, BlueMax: 255, RedShift: 16, GreenShift: 8, BlueShift: 0}); err != nil {
+	pixelFormat := &vnc.PixelFormat{BPP: 32, Depth: 24, BigEndian: false, TrueColor: true, RedMax: 255, GreenMax: 255, BlueMax: 255, RedShift: 16, GreenShift: 8, BlueShift: 0}
+	if err := client.SetPixelFormat(pixelFormat); err != nil {
 		return nil, err
 	}
+	// go-vnc sends SetPixelFormat but leaves ClientConn.PixelFormat holding
+	// the server's handshake format. Keep the decoder metadata in sync with
+	// the bytes we explicitly negotiated.
+	client.PixelFormat = *pixelFormat
 	_ = client.SetEncodings([]vnc.Encoding{&HextileEncoding{}, &vnc.RawEncoding{}})
 	if err := client.FramebufferUpdateRequest(false, 0, 0, client.FrameBufferWidth, client.FrameBufferHeight); err != nil {
 		return nil, err
@@ -88,7 +93,7 @@ func Capture(ctx context.Context, host string, port int, password string) ([]byt
 		}
 	}
 	var b bytes.Buffer
-	if err := png.Encode(&b, img); err != nil {
+	if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&b, img); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
@@ -126,10 +131,12 @@ func NewCaptureSession(ctx context.Context, host string, port int, password stri
 		_ = conn.Close()
 		return nil, err
 	}
-	if err := client.SetPixelFormat(&vnc.PixelFormat{BPP: 32, Depth: 24, BigEndian: false, TrueColor: true, RedMax: 255, GreenMax: 255, BlueMax: 255, RedShift: 16, GreenShift: 8, BlueShift: 0}); err != nil {
+	pixelFormat := &vnc.PixelFormat{BPP: 32, Depth: 24, BigEndian: false, TrueColor: true, RedMax: 255, GreenMax: 255, BlueMax: 255, RedShift: 16, GreenShift: 8, BlueShift: 0}
+	if err := client.SetPixelFormat(pixelFormat); err != nil {
 		_ = client.Close()
 		return nil, err
 	}
+	client.PixelFormat = *pixelFormat
 	_ = client.SetEncodings([]vnc.Encoding{&HextileEncoding{}, &vnc.RawEncoding{}})
 	return &CaptureSession{conn: conn, client: client, messages: messages, img: image.NewRGBA(image.Rect(0, 0, int(client.FrameBufferWidth), int(client.FrameBufferHeight))), first: true}, nil
 }
@@ -186,7 +193,7 @@ func (s *CaptureSession) Next(ctx context.Context) ([]byte, error) {
 				}
 			}
 			var b bytes.Buffer
-			if err := png.Encode(&b, s.img); err != nil {
+			if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&b, s.img); err != nil {
 				s.mu.Unlock()
 				return nil, err
 			}

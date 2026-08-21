@@ -89,36 +89,55 @@ type devtoolActionMsg struct {
 }
 type orchestratorMsg widget.OrchestratorSnapshot
 type orchestratorTickMsg time.Time
+type orchestratorModeMsg widget.OrchestratorModeResult
+
+// agentUsagePoint is one CPU/memory reading for one agent, kept in a small
+// ring buffer so the AGENTS tab can draw a live trend, the same way the
+// server list keeps a history of metrics.Sample.
+type agentUsagePoint struct {
+	CPUPercent float64
+	RSSBytes   int64
+}
 type Model struct {
-	cfg             config.Config
-	collector       collector.Collector
-	samples         []metrics.Sample
-	history         [][]metrics.Sample
-	cursor          int
-	detail          bool
-	detailTab       int
-	detailScroll    int
-	rangeIndex      int
-	displayCPU      []float64
-	displayCores    [][]float64
-	streamBuffers   [][]metrics.Sample
-	desktopFrames   map[int]string
-	desktopErrors   map[int]string
-	desktopStreams  map[int]*desktopclient.Stream
-	ssh             *sshPane
-	sshText         string
-	devtoolCursor   int
-	devtoolStatus   map[string]bool
-	devtoolVersions map[string]string
-	devtoolConfirm  string
-	devtoolMessage  string
-	devtoolBusy     bool
-	orchestrator    widget.OrchestratorSnapshot
-	orchestratorSel int
-	width, height   int
-	collecting      bool
-	pending         int
-	lastRefresh     time.Time
+	cfg                            config.Config
+	collector                      collector.Collector
+	samples                        []metrics.Sample
+	history                        [][]metrics.Sample
+	cursor                         int
+	detail                         bool
+	detailTab                      int
+	detailScroll                   int
+	rangeIndex                     int
+	displayCPU                     []float64
+	displayCores                   [][]float64
+	streamBuffers                  [][]metrics.Sample
+	desktopFrames                  map[int]string
+	desktopFrameRaw                map[int][]byte
+	desktopFrameSize               map[int]image.Point
+	desktopClear                   string
+	desktopErrors                  map[int]string
+	desktopStreams                 map[int]*desktopclient.Stream
+	ssh                            *sshPane
+	sshText                        string
+	devtoolCursor                  int
+	devtoolStatus                  map[string]bool
+	devtoolVersions                map[string]string
+	devtoolConfirm                 string
+	devtoolMessage                 string
+	devtoolBusy                    bool
+	orchestrator                   widget.OrchestratorSnapshot
+	orchestratorSel                int
+	agentUsage                     map[int][]agentUsagePoint
+	orchestratorModeMenu           bool
+	orchestratorModeCursor         int
+	orchestratorModeConfirm        bool
+	orchestratorModeBusy           bool
+	orchestratorModeMessage        string
+	orchestratorModeMessageIsError bool
+	width, height                  int
+	collecting                     bool
+	pending                        int
+	lastRefresh                    time.Time
 }
 
 func New(cfg config.Config) Model {
@@ -128,7 +147,7 @@ func New(cfg config.Config) Model {
 			n++
 		}
 	}
-	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, devtoolVersions: map[string]string{}, collecting: n > 0, pending: n}
+	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopFrameRaw: map[int][]byte{}, desktopFrameSize: map[int]image.Point{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, devtoolVersions: map[string]string{}, agentUsage: map[int][]agentUsagePoint{}, collecting: n > 0, pending: n}
 }
 func (m Model) Init() tea.Cmd {
 	cmds := append(m.collectAll(), m.nextFrame())
@@ -146,7 +165,9 @@ func (m Model) nextOrchestratorTick() tea.Cmd {
 }
 
 // orchestratorWidget returns the first configured "orchestrator" widget, or
-// nil when the inventory does not have one.
+// nil when the inventory does not have one. Use it only to fetch the
+// snapshot. The AGENTS tab uses orchestratorWidgetFor, because the daemon
+// runs on one server, not on every server.
 func (m Model) orchestratorWidget() *config.Widget {
 	for i := range m.cfg.Widgets {
 		if m.cfg.Widgets[i].Type == "orchestrator" {
@@ -154,6 +175,37 @@ func (m Model) orchestratorWidget() *config.Widget {
 		}
 	}
 	return nil
+}
+
+// orchestratorWidgetFor returns the orchestrator widget that runs on the
+// server at index, or nil when that server does not run one. A widget with
+// no host and no endpoint host belongs to no server, so the tab stays
+// hidden instead of appearing on every server.
+func (m Model) orchestratorWidgetFor(index int) *config.Widget {
+	if index < 0 || index >= len(m.cfg.Servers) {
+		return nil
+	}
+	address := m.cfg.Servers[index].Address
+	for i := range m.cfg.Widgets {
+		w := &m.cfg.Widgets[i]
+		if w.Type != "orchestrator" {
+			continue
+		}
+		if host := w.HostAddress(); host != "" && host == address {
+			return w
+		}
+	}
+	return nil
+}
+
+// clampDetailTab leaves a tab that the server under the cursor does not
+// have. The cursor moves only in the overview, so the detail view can open
+// on a server without the AGENTS tab while that tab is still selected.
+func (m *Model) clampDetailTab() {
+	if m.detailTab == 10 && m.orchestratorWidgetFor(m.cursor) == nil {
+		m.detailTab = 0
+		m.detailScroll = 0
+	}
 }
 
 // fetchOrchestrator does one authenticated read of the orchestrator status
@@ -165,17 +217,65 @@ func (m Model) fetchOrchestrator() tea.Cmd {
 	}
 	p := *provider
 	return func() tea.Msg {
-		token := os.Getenv(p.TokenEnv)
-		if p.TokenFile != "" {
-			b, err := os.ReadFile(config.ExpandHome(p.TokenFile))
-			if err != nil {
-				return orchestratorMsg(widget.OrchestratorSnapshot{Name: p.Name, At: time.Now(), Error: "read token: " + err.Error()})
-			}
-			token = strings.TrimSpace(string(b))
+		token, err := orchestratorToken(p)
+		if err != nil {
+			return orchestratorMsg(widget.OrchestratorSnapshot{Name: p.Name, At: time.Now(), Error: err.Error()})
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return orchestratorMsg(widget.FetchOrchestrator(ctx, p, token))
+	}
+}
+
+// orchestratorToken reads the widget's token the same way for every
+// orchestrator request, whether it reads status or sets the mode.
+func orchestratorToken(p config.Widget) (string, error) {
+	if p.TokenFile == "" {
+		return os.Getenv(p.TokenEnv), nil
+	}
+	b, err := os.ReadFile(config.ExpandHome(p.TokenFile))
+	if err != nil {
+		return "", fmt.Errorf("read token: %w", err)
+	}
+	return strings.TrimSpace(string(b)), nil
+}
+
+// orchestratorModes lists the daemon's three run modes, in the wording the
+// operator's own CLI uses, for the AGENTS tab's mode menu.
+var orchestratorModes = []struct{ Value, Description string }{
+	{"fast", "full fanout"},
+	{"economy", "one third"},
+	{"paused", "takes no new work — running tasks finish"},
+}
+
+// orchestratorModeIndex finds mode in orchestratorModes, defaulting to the
+// first entry when the daemon reports a mode the menu does not list yet.
+func orchestratorModeIndex(mode string) int {
+	for i, opt := range orchestratorModes {
+		if opt.Value == mode {
+			return i
+		}
+	}
+	return 0
+}
+
+// setOrchestratorMode sends the widget's one write: a request to change the
+// daemon's run mode. Every mode only reduces work, so this can never raise
+// fanout, spend, or point the daemon at a different repository.
+func (m Model) setOrchestratorMode(mode string) tea.Cmd {
+	provider := m.orchestratorWidget()
+	if provider == nil {
+		return nil
+	}
+	p := *provider
+	return func() tea.Msg {
+		token, err := orchestratorToken(p)
+		if err != nil {
+			return orchestratorModeMsg(widget.OrchestratorModeResult{Error: err.Error()})
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return orchestratorModeMsg(widget.SetOrchestratorMode(ctx, p, token, mode))
 	}
 }
 func (m Model) nextFrame() tea.Cmd {
@@ -238,6 +338,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.ssh != nil {
 			m.ssh.resize(msg.Width, max(1, msg.Height-4))
 		}
+		if m.detail && m.detailTab == 7 {
+			m.desktopClear = ""
+			if raw := m.desktopFrameRaw[m.cursor]; len(raw) > 0 {
+				m.desktopFrames[m.cursor] = m.renderDesktopFrame(m.cursor, raw)
+			}
+		}
 	case tea.KeyMsg:
 		if m.ssh != nil {
 			switch msg.String() {
@@ -251,10 +357,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.desktopForServer(m.cursor) != nil {
 					maxTabs = 10
 				}
-				if m.orchestratorWidget() != nil {
+				if m.orchestratorWidgetFor(m.cursor) != nil {
 					maxTabs++
 				}
 				m.detailTab = (m.detailTab + 1) % maxTabs
+				if m.detailTab == 7 {
+					m.desktopClear = ""
+				}
 				m.detailScroll = 0
 				if m.detailTab == 9 {
 					return m, m.loadDevtoolsStatus(m.cursor)
@@ -313,9 +422,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if m.detail && m.detailTab == 7 && isRemoteDesktopKey(msg.String()) {
+			if msg.String() == "p" {
+				return m, m.sendDesktopClipboard(m.cursor)
+			}
 			return m, m.sendDesktopKey(m.cursor, msg.String())
 		}
-		if m.detail && m.detailTab == 10 {
+		// The mode menu is a small modal on top of the AGENTS tab: while it
+		// is open, up/down/enter/esc drive the menu, not the agent list.
+		if m.detail && m.detailTab == 10 && m.orchestratorWidgetFor(m.cursor) != nil && m.orchestratorModeMenu {
+			switch msg.String() {
+			case "up", "k":
+				if m.orchestratorModeCursor > 0 {
+					m.orchestratorModeCursor--
+				}
+				m.orchestratorModeConfirm = false
+				return m, nil
+			case "down", "j":
+				if m.orchestratorModeCursor < len(orchestratorModes)-1 {
+					m.orchestratorModeCursor++
+				}
+				m.orchestratorModeConfirm = false
+				return m, nil
+			case "esc":
+				m.orchestratorModeMenu = false
+				m.orchestratorModeConfirm = false
+				return m, nil
+			case "enter":
+				if m.orchestratorModeBusy {
+					return m, nil
+				}
+				if m.orchestratorModeConfirm {
+					m.orchestratorModeConfirm = false
+					m.orchestratorModeBusy = true
+					m.orchestratorModeMessage = ""
+					return m, m.setOrchestratorMode(orchestratorModes[m.orchestratorModeCursor].Value)
+				}
+				m.orchestratorModeConfirm = true
+				return m, nil
+			}
+			return m, nil
+		}
+		if m.detail && m.detailTab == 10 && m.orchestratorWidgetFor(m.cursor) != nil {
 			switch msg.String() {
 			case "up", "k":
 				if m.orchestratorSel > 0 {
@@ -327,7 +474,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.orchestratorSel++
 				}
 				return m, nil
+			case "p":
+				if a := m.orchestratorSelected(); a != nil {
+					if url := orchestratorPRURL(m.orchestrator.Repo, a.PRNumber); url != "" {
+						return m, openURL(url)
+					}
+				}
+				return m, nil
+			case "i":
+				if a := m.orchestratorSelected(); a != nil {
+					return m, openURL(orchestratorIssueURL(m.orchestrator.Repo, a.Issue))
+				}
+				return m, nil
+			case "m":
+				m.orchestratorModeMenu = true
+				m.orchestratorModeCursor = orchestratorModeIndex(m.orchestrator.Mode)
+				m.orchestratorModeConfirm = false
+				m.orchestratorModeMessage = ""
+				return m, nil
 			}
+		}
+		if m.detail && m.detailTab == 7 && leavesDesktopTab(msg.String()) {
+			m.desktopClear = clearDesktopImage()
+			m.desktopFrameRaw[m.cursor] = nil
 		}
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -352,16 +521,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.startSSH(m.cursor)
 			}
 			m.detail = true
+			m.clampDetailTab()
 		case "tab":
 			if m.detail {
+				if m.detailTab == 7 {
+					m.desktopClear = clearDesktopImage()
+				}
 				maxTabs := 9
 				if m.desktopForServer(m.cursor) != nil {
 					maxTabs = 10
 				}
-				if m.orchestratorWidget() != nil {
+				if m.orchestratorWidgetFor(m.cursor) != nil {
 					maxTabs++
 				}
 				m.detailTab = (m.detailTab + 1) % maxTabs
+				if m.detailTab == 7 {
+					m.desktopClear = ""
+				}
 				m.detailScroll = 0
 			}
 		case "1":
@@ -382,6 +558,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "8":
 			if m.detail && m.desktopForServer(m.cursor) != nil {
 				m.detailTab = 7
+				m.desktopClear = ""
 				m.detailScroll = 0
 			}
 		case "9":
@@ -396,7 +573,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.loadDevtoolsStatus(m.cursor)
 			}
 		case "o":
-			if m.detail && m.orchestratorWidget() != nil {
+			if m.detail && m.orchestratorWidgetFor(m.cursor) != nil {
 				m.detailTab = 10
 				m.detailScroll = 0
 			}
@@ -419,7 +596,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					s.Close()
 				}
 				m.desktopStreams[m.cursor] = nil
-				m.desktopFrames[m.cursor] = ""
+				m.desktopClear = clearDesktopImage()
+				m.desktopFrames[m.cursor] = m.desktopClear
+				m.desktopFrameRaw[m.cursor] = nil
 				m.desktopErrors[m.cursor] = ""
 			}
 			if m.detailTab == 8 && m.ssh != nil {
@@ -438,6 +617,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.loadHistory(m.cursor)
 			}
 		case "esc", "left", "h":
+			if m.detail && m.detailTab == 7 {
+				m.desktopClear = clearDesktopImage()
+			}
 			for i, s := range m.desktopStreams {
 				if s != nil {
 					s.Close()
@@ -540,6 +722,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.desktopStreams[msg.Index] = msg.Stream
 		m.desktopErrors[msg.Index] = ""
+		m.desktopFrameRaw[msg.Index] = append(m.desktopFrameRaw[msg.Index][:0], msg.Frame...)
+		m.rememberDesktopFrameSize(msg.Index, msg.Frame)
 		m.desktopFrames[msg.Index] = m.renderDesktopFrame(msg.Index, msg.Frame)
 		if stream := m.desktopStreams[msg.Index]; stream != nil {
 			if text := stream.Clipboard(); text != "" {
@@ -556,7 +740,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.desktopStreams[msg.Index] = nil
 			return m, nil
 		}
+		m.desktopFrameRaw[msg.Index] = append(m.desktopFrameRaw[msg.Index][:0], msg.Frame...)
+		m.rememberDesktopFrameSize(msg.Index, msg.Frame)
 		m.desktopFrames[msg.Index] = m.renderDesktopFrame(msg.Index, msg.Frame)
+		if stream := m.desktopStreams[msg.Index]; stream != nil {
+			if text := stream.Clipboard(); text != "" {
+				setLocalClipboard(text)
+			}
+		}
 		return m, m.readDesktopStream(msg.Index)
 	case sshOutputMsg:
 		if msg.Data != "" && m.ssh != nil {
@@ -607,7 +798,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.orchestratorSel >= len(m.orchestrator.Agents) {
 			m.orchestratorSel = max(0, len(m.orchestrator.Agents)-1)
 		}
+		// Append one CPU/RSS point per live agent, capped at HistorySize
+		// like the rest of the UI, then drop the series for any issue that
+		// is no longer live so the map cannot grow across a long session.
+		live := map[int]bool{}
+		for _, a := range m.orchestrator.Agents {
+			live[a.Issue] = true
+			pts := append(m.agentUsage[a.Issue], agentUsagePoint{CPUPercent: a.CPUPercent, RSSBytes: a.RSSBytes})
+			if len(pts) > m.cfg.HistorySize {
+				pts = pts[len(pts)-m.cfg.HistorySize:]
+			}
+			m.agentUsage[a.Issue] = pts
+		}
+		for issue := range m.agentUsage {
+			if !live[issue] {
+				delete(m.agentUsage, issue)
+			}
+		}
 		return m, nil
+	case orchestratorModeMsg:
+		m.orchestratorModeBusy = false
+		result := widget.OrchestratorModeResult(msg)
+		if !result.OK {
+			m.orchestratorModeMessageIsError = true
+			if result.Error != "" {
+				m.orchestratorModeMessage = result.Error
+			} else {
+				m.orchestratorModeMessage = "mode change failed"
+			}
+			return m, nil
+		}
+		// Close the menu and refresh from the daemon rather than trusting
+		// the local write, so the header shows the mode the daemon is
+		// actually running, not just the one this request asked for.
+		m.orchestratorModeMenu = false
+		m.orchestratorModeMessageIsError = false
+		m.orchestratorModeMessage = "mode set to " + result.Mode
+		return m, m.fetchOrchestrator()
 	case orchestratorTickMsg:
 		return m, tea.Batch(m.fetchOrchestrator(), m.nextOrchestratorTick())
 	case tickMsg:
@@ -710,7 +937,14 @@ func (m Model) View() string {
 	}
 	help := "  ↑/↓ navigate  enter details  s SSH  esc overview  r refresh  q quit"
 	if m.detail {
-		help = "  tab / 1..9 widgets  s SSH  c connect desktop  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
+		// "p" belongs to the remote desktop tab only. Advertising it
+		// everywhere made it look like it clashed with the agents tab,
+		// where "p" opens the selected pull request.
+		clip := ""
+		if m.detailTab == 7 {
+			clip = "  p clipboard"
+		}
+		help = "  tab / 1..9 widgets  s SSH  c connect desktop" + clip + "  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
 		if m.ssh != nil {
 			help = "  SSH session active  cmd+x close session  ctrl-c remote"
 		}
@@ -818,7 +1052,7 @@ func (m Model) detailView() string {
 	}
 	labels = append(labels, "9 SSH")
 	labels = append(labels, "10 DEVTOOLS")
-	if m.orchestratorWidget() != nil {
+	if m.orchestratorWidgetFor(m.cursor) != nil {
 		labels = append(labels, "o AGENTS")
 	}
 	tabs := "  "
@@ -854,6 +1088,9 @@ func (m Model) detailView() string {
 		body = m.devtoolsView()
 	case 10:
 		body = m.orchestratorView()
+	}
+	if m.detail && m.detailTab != 7 && m.desktopClear != "" {
+		body = m.desktopClear + body
 	}
 	return info + common + tabs + body
 }
@@ -933,57 +1170,384 @@ func (m Model) devtoolsView() string {
 // orchestratorView renders the agent orchestrator status: a header line,
 // the live agent list with the selected agent highlighted, and the full
 // detail of the selected agent below the list.
+// orchestratorSelected returns the currently highlighted agent, or nil when
+// the list is empty or the cursor is out of range.
+func (m Model) orchestratorSelected() *widget.OrchestratorAgent {
+	if m.orchestratorSel < 0 || m.orchestratorSel >= len(m.orchestrator.Agents) {
+		return nil
+	}
+	return &m.orchestrator.Agents[m.orchestratorSel]
+}
+
+// orchestratorIssueURL builds the GitHub issue link. Every agent has an
+// issue number, so this link is always available once repo is known.
+func orchestratorIssueURL(repo string, issue int) string {
+	if repo == "" {
+		return ""
+	}
+	return fmt.Sprintf("https://github.com/%s/issues/%d", repo, issue)
+}
+
+// orchestratorPRURL builds the GitHub pull request link. It returns "" when
+// the agent has not opened a pull request yet, so openURL does nothing
+// rather than open a half-built link.
+func orchestratorPRURL(repo string, pr *int) string {
+	if repo == "" || pr == nil {
+		return ""
+	}
+	return fmt.Sprintf("https://github.com/%s/pull/%d", repo, *pr)
+}
+
+// orchestratorHistoryView lists the tasks that already left the live list.
+//
+// A finished or blocked agent used to vanish from the widget entirely, which
+// made a failure invisible: the only trace was a GitHub comment. The daemon
+// keeps these records in its state file, so they survive a restart and stay
+// readable long after the worker died.
+func orchestratorHistoryView(snap widget.OrchestratorSnapshot, width int) string {
+	if len(snap.Recent) == 0 {
+		return ""
+	}
+	out := "  " + titleStyle.Render("HISTORY") + "  " + dimStyle.Render("tasks an agent already handled") + "\n\n"
+	out += dimStyle.Render(truncate(fmt.Sprintf("  %-6s %-10s %-7s %s", "ISSUE", "STATE", "PR", "TITLE / REASON"), width)) + "\n"
+	for _, r := range snap.Recent {
+		style := dimStyle
+		switch r.State {
+		case "done", "merged":
+			style = okStyle
+		case "blocked", "failed":
+			style = errStyle
+		}
+		pr := "—"
+		if r.PRNumber != nil {
+			pr = fmt.Sprintf("#%d", *r.PRNumber)
+		}
+		out += fmt.Sprintf("  #%-5d %s %-7s %s\n",
+			r.Issue, style.Render(pad(r.State, 10)), pr, truncate(or(r.Title, "title pending"), 44))
+		// The reason a task stopped is the point of the history, so it gets
+		// its own line rather than being cut off at the end of the row.
+		if r.LastError != "" {
+			out += "         " + dimStyle.Render(truncate(r.LastError, max(20, width-10))) + "\n"
+		}
+	}
+	return out
+}
+
 func (m Model) orchestratorView() string {
 	snap := m.orchestrator
-	var b strings.Builder
-	b.WriteString("  AGENT ORCHESTRATOR\n\n")
 	if snap.Error != "" {
-		b.WriteString("  " + errStyle.Render("unavailable: "+snap.Error) + "\n")
-		return b.String()
+		return "  " + titleStyle.Render("ORCHESTRATOR") + "\n\n  " + errStyle.Render("unavailable: "+snap.Error) + "\n"
 	}
-	health := okStyle.Render("healthy")
+	health := okStyle.Bold(true).Render("HEALTHY")
 	if !snap.Healthy {
-		health = errStyle.Render("degraded")
+		health = errStyle.Bold(true).Render("DEGRADED")
 	}
-	fmt.Fprintf(&b, "  mode %-8s %s  •  %d live  •  spend $%.2f / $%.2f today  •  daemon CPU %.1f%%  MEM %s\n\n",
-		snap.Mode, health, snap.Totals.Live, snap.Budget.DayUSD, snap.Budget.DayLimitUSD, snap.Daemon.CPUPercent, bytes(uint64(max(0, snap.Daemon.RSSBytes))))
+	agentWord := "agents"
+	if snap.Totals.Live == 1 {
+		agentWord = "agent"
+	}
+	summary := fmt.Sprintf("%s  %s  •  mode %s  •  %s  •  %d %s live\n%s %s %s    %s  %s",
+		titleStyle.Render("ORCHESTRATOR"), health, snap.Mode, dimStyle.Render(snap.AccountLabel()), snap.Totals.Live, agentWord,
+		warnStyle.Render("CPU"), bar(snap.Daemon.CPUPercent, 10), percentText(snap.Daemon.CPUPercent),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#A78BFA")).Render("MEM"), bytes(uint64(max(0, snap.Daemon.RSSBytes))))
+	out := lipgloss.NewStyle().MarginLeft(2).Border(lipgloss.RoundedBorder()).BorderForeground(panel).Padding(0, 1).Render(summary) + "\n\n"
+	if m.orchestratorModeMenu {
+		out += m.orchestratorModeMenuView(snap)
+	}
+	out += orchestratorLimitsView(snap.Limits)
+	// The plan usage bars above are the real constraint on a subscription;
+	// the dollar figure is secondary information, so it stays small and
+	// dim rather than competing with the bars for attention.
+	out += "  " + dimStyle.Render(snap.CostText()) + "\n\n"
+	out += orchestratorDiskView(snap.Disk)
 	if len(snap.Agents) == 0 {
-		b.WriteString("  No agents are running.\n")
-		return b.String()
+		// History still matters when nothing runs: it is the only place a
+		// blocked or finished task can be seen at all.
+		return out + dimStyle.Render("  No agents are running.") + "\n\n" +
+			orchestratorHistoryView(snap, max(70, m.width-4)) + "\n  m set mode\n"
 	}
-	contentWidth := max(60, m.width-4)
+	out += "  " + titleStyle.Render("ACTIVE AGENTS") + "  " + dimStyle.Render("live task list") + "\n\n"
+	contentWidth := max(70, m.width-4)
+	out += dimStyle.Render(truncate(fmt.Sprintf("  %-6s %-13s %-9s %-6s %-4s %s", "ISSUE", "STATE", "ELAPSED", "WK%", "SUB", "TITLE"), contentWidth)) + "\n"
 	for i, a := range snap.Agents {
-		line := fmt.Sprintf("  #%-5d %-14s %-40s $%.3f", a.Issue, a.State, truncate(a.Title, 40), a.CostUSD)
+		wk := "—"
+		if a.WeeklyPercentUsed != nil {
+			wk = fmt.Sprintf("%.1f%%", *a.WeeklyPercentUsed)
+		}
+		// A marker only appears when the daemon reports children for this
+		// agent; an absent or empty children list leaves the column blank
+		// so it never falls out of alignment with the other rows.
+		sub := ""
+		if len(a.Children) > 0 {
+			sub = fmt.Sprintf("+%d", len(a.Children))
+		}
+		line := fmt.Sprintf("  #%-5d %-13s %-9s %-6s %-4s %s", a.Issue, a.State, elapsedDuration(time.Duration(a.ElapsedSeconds)*time.Second), wk, sub, truncate(a.Title, 40))
 		if i == m.orchestratorSel {
-			b.WriteString(lipgloss.NewStyle().Background(panel).Bold(true).Foreground(cyan).Render(pad(line, contentWidth)) + "\n")
+			out += lipgloss.NewStyle().Background(panel).Bold(true).Foreground(cyan).Render(pad(line, contentWidth)) + "\n"
+		} else {
+			out += line + "\n"
+		}
+	}
+	if m.orchestratorSel < 0 || m.orchestratorSel >= len(snap.Agents) {
+		return out
+	}
+	out += "\n" + m.orchestratorAgentDetail(snap.Agents[m.orchestratorSel])
+	prHint := dimStyle.Render("p open pull request (none yet)")
+	if a := m.orchestratorSelected(); a != nil && orchestratorPRURL(m.orchestrator.Repo, a.PRNumber) != "" {
+		prHint = "p open pull request"
+	}
+	out += "\n" + orchestratorHistoryView(snap, contentWidth)
+	out += "\n  ↑/↓ select agent  •  i open issue  •  " + prHint + "  •  m set mode\n"
+	return out
+}
+
+// orchestratorModeMenuView renders the mode-select menu: the three run
+// modes with the wording the operator's own CLI uses, the current mode
+// highlighted, and a second Enter required to confirm before the write is
+// sent — the same arm-then-confirm shape as the DEVTOOLS tab.
+func (m Model) orchestratorModeMenuView(snap widget.OrchestratorSnapshot) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "  %s  %s\n\n", titleStyle.Render("SET MODE"), dimStyle.Render("current: "+snap.Mode))
+	width := max(50, m.width-4)
+	for i, opt := range orchestratorModes {
+		line := fmt.Sprintf("  %-9s %s", opt.Value, opt.Description)
+		if i == m.orchestratorModeCursor {
+			b.WriteString(lipgloss.NewStyle().Background(panel).Bold(true).Foreground(cyan).Render(pad(line, width)) + "\n")
 		} else {
 			b.WriteString(line + "\n")
 		}
 	}
-	if m.orchestratorSel < 0 || m.orchestratorSel >= len(snap.Agents) {
-		return b.String()
+	switch {
+	case m.orchestratorModeBusy:
+		b.WriteString(warnStyle.Render("\n  ◌ working…\n"))
+	case m.orchestratorModeConfirm:
+		fmt.Fprintf(&b, "\n  Confirm switch to %s: press Enter again; Esc cancels.\n", orchestratorModes[m.orchestratorModeCursor].Value)
+	default:
+		b.WriteString("\n  ↑/↓ select  Enter arm  Enter again confirm  Esc cancel\n")
 	}
-	sel := snap.Agents[m.orchestratorSel]
-	pr := "—"
-	if sel.PRNumber != nil {
-		pr = fmt.Sprintf("#%d", *sel.PRNumber)
+	if m.orchestratorModeMessage != "" {
+		style := okStyle
+		if m.orchestratorModeMessageIsError {
+			style = errStyle
+		}
+		b.WriteString("  " + style.Render(m.orchestratorModeMessage) + "\n")
 	}
-	b.WriteString("\n")
-	fmt.Fprintf(&b, "  %-14s %s\n", "TITLE", sel.Title)
-	fmt.Fprintf(&b, "  %-14s %s\n", "STATE", sel.State)
-	fmt.Fprintf(&b, "  %-14s %d\n", "CYCLE", sel.Cycle)
-	fmt.Fprintf(&b, "  %-14s %s\n", "BRANCH", sel.Branch)
-	fmt.Fprintf(&b, "  %-14s %s\n", "PR", pr)
-	fmt.Fprintf(&b, "  %-14s %s\n", "ELAPSED", duration(float64(sel.ElapsedSeconds)))
-	fmt.Fprintf(&b, "  %-14s %d in / %d out\n", "TOKENS", sel.InputTokens, sel.OutputTokens)
-	fmt.Fprintf(&b, "  %-14s $%.3f\n", "COST", sel.CostUSD)
-	fmt.Fprintf(&b, "  %-14s %d\n", "PID", sel.PID)
-	fmt.Fprintf(&b, "  %-14s %.1f%%\n", "CPU", sel.CPUPercent)
-	fmt.Fprintf(&b, "  %-14s %s\n", "MEM", bytes(uint64(max(0, sel.RSSBytes))))
+	return b.String() + "\n"
+}
+
+// orchestratorLimitsView renders the two subscription plan usage bars. A nil
+// window (no reading yet) draws no bar at all, since an empty bar would read
+// as "plenty left" rather than "unknown".
+func orchestratorLimitsView(limits *widget.OrchestratorLimits) string {
+	if limits == nil || (limits.Weekly == nil && limits.FiveHour == nil) {
+		return ""
+	}
+	label := "PLAN USAGE"
+	if limits.PlanType != "" {
+		label += "  " + dimStyle.Render(limits.PlanType)
+	}
+	out := "  " + titleStyle.Render(label) + "\n\n"
+	out += orchestratorUsageBar("WEEKLY", limits.Weekly)
+	out += orchestratorUsageBar("5-HOUR", limits.FiveHour)
+	return out + "\n"
+}
+func orchestratorUsageBar(label string, w *widget.OrchestratorUsageWindow) string {
+	if w == nil {
+		return fmt.Sprintf("  %-7s %s\n", label, dimStyle.Render("no reading"))
+	}
+	resets := dimStyle.Render("resets now")
+	if until := time.Until(time.Unix(w.ResetsAt, 0)); until > 0 {
+		resets = dimStyle.Render("resets in " + duration(until.Seconds()))
+	}
+	return fmt.Sprintf("  %-7s %s  %s  %s\n", label, bar(w.UsedPercent, 24), percentText(w.UsedPercent), resets)
+}
+
+// orchestratorDiskView renders the daemon host's overall disk usage. A nil
+// disk (no reading yet) draws nothing, for the same reason a nil usage
+// window draws no bar.
+func orchestratorDiskView(disk *widget.OrchestratorDisk) string {
+	if disk == nil {
+		return ""
+	}
+	percent := 0.0
+	if disk.TotalBytes > 0 {
+		percent = float64(disk.UsedBytes) / float64(disk.TotalBytes) * 100
+	}
+	out := "  " + titleStyle.Render("HOST DISK") + "\n\n"
+	out += fmt.Sprintf("  %-7s %s  %s  %s used / %s total\n", "DISK", bar(percent, 24), percentText(percent), bytes(uint64(max(0, disk.UsedBytes))), bytes(uint64(max(0, disk.TotalBytes))))
+	return out + "\n"
+}
+
+// orchestratorAgentDetail renders every field of one agent: the live "now
+// doing" activity line with its age, the issue and pull request links in
+// full (so a reader can copy them by hand), CPU/memory as a point-in-time
+// reading plus a live trend, and the spark subagent tree when the daemon
+// reports one.
+func (m Model) orchestratorAgentDetail(sel widget.OrchestratorAgent) string {
+	cardWidth := max(48, min(76, m.width-8))
+	accent := orchestratorAccent(sel)
+
+	// The CPU/memory series only holds the readings collected since this
+	// agent tab was opened; it is empty right after selecting a new agent.
+	points := m.agentUsage[sel.Issue]
+	cpuValues := make([]float64, len(points))
+	maxRSS := int64(0)
+	for i, p := range points {
+		cpuValues[i] = math.Min(100, p.CPUPercent)
+		if p.RSSBytes > maxRSS {
+			maxRSS = p.RSSBytes
+		}
+	}
+	memTrend := ""
+	if maxRSS > 0 {
+		memValues := make([]float64, len(points))
+		for i, p := range points {
+			memValues[i] = float64(p.RSSBytes) / float64(maxRSS) * 100
+		}
+		memTrend = sparkValues(memValues)
+	}
+
+	var b strings.Builder
+
+	// Identity card: which issue, what state, what it is called.
+	badge := lipgloss.NewStyle().Bold(true).Foreground(accent).Render("● " + strings.ToUpper(or(sel.State, "unknown")))
+	issue := lipgloss.NewStyle().Bold(true).Foreground(cyan).Render(fmt.Sprintf("ISSUE #%d", sel.Issue))
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#E2E8F0")).Render(or(sel.Title, "title pending"))
+	meta := dimStyle.Render(fmt.Sprintf("%s  •  cycle %d  •  %s elapsed",
+		or(sel.Branch, "no branch"), sel.Cycle,
+		elapsedDuration(time.Duration(sel.ElapsedSeconds)*time.Second)))
+	b.WriteString(orchestratorCard(issue+"  "+badge+"\n"+title+"\n"+meta, accent, cardWidth))
+
+	// Live usage card: the numbers that move while you watch.
+	cpuStyle := lipgloss.NewStyle().Bold(true).Foreground(accent)
+	memStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#A78BFA"))
+	cpuLine := cpuStyle.Render("CPU") + " " + bar(sel.CPUPercent, 12) + " " + percentText(sel.CPUPercent) +
+		dimStyle.Render("  ") + lipgloss.NewStyle().Foreground(accent).Render(sparkValues(cpuValues))
+	memLine := memStyle.Render("RAM "+bytes(uint64(max(0, sel.RSSBytes)))) +
+		dimStyle.Render("  ") + memStyle.Render(memTrend) +
+		dimStyle.Render(fmt.Sprintf("  •  pid %d", sel.PID))
+	wk := "—"
+	if sel.WeeklyPercentUsed != nil {
+		wk = fmt.Sprintf("%.1f%% of the week", *sel.WeeklyPercentUsed)
+	}
+	costLine := dimStyle.Render(fmt.Sprintf("%d in / %d out  •  %d turns  •  ~$%.3f  •  %s",
+		sel.InputTokens, sel.OutputTokens, sel.Turns, sel.CostUSD, wk))
+	b.WriteString(orchestratorCard(cpuLine+"\n"+memLine+"\n"+costLine, accent, cardWidth))
+
+	// Location card: the links and paths a reader copies by hand.
+	pr := dimStyle.Render("no pull request yet")
+	if url := orchestratorPRURL(m.orchestrator.Repo, sel.PRNumber); url != "" {
+		pr = lipgloss.NewStyle().Foreground(cyan).Render(url)
+	}
+	where := lipgloss.NewStyle().Foreground(cyan).Render(orchestratorIssueURL(m.orchestrator.Repo, sel.Issue)) + "\n" + pr
+	tree := or(sel.Worktree, "no worktree")
+	if sel.WorktreeDiskBytes != nil {
+		tree += fmt.Sprintf("  •  %s on disk", bytes(uint64(max(0, *sel.WorktreeDiskBytes))))
+	}
+	where += "\n" + dimStyle.Render(tree)
+	b.WriteString(orchestratorCard(where, muted, cardWidth))
+
+	// What it is doing right now, and why it stopped if it did.
+	if sel.LastActivity != nil {
+		now := *sel.LastActivity
+		if sel.ActivityAgeSeconds != nil {
+			now += fmt.Sprintf("  (%s ago)", elapsedDuration(time.Duration(*sel.ActivityAgeSeconds)*time.Second))
+		}
+		b.WriteString(orchestratorCard(
+			lipgloss.NewStyle().Bold(true).Foreground(accent).Render("NOW")+"\n"+now, accent, cardWidth))
+	}
 	if sel.LastError != "" {
-		b.WriteString("  " + errStyle.Render(fmt.Sprintf("%-14s %s", "LAST ERROR", sel.LastError)) + "\n")
+		b.WriteString(orchestratorCard(
+			lipgloss.NewStyle().Bold(true).Foreground(red).Render("LAST ERROR")+"\n"+sel.LastError, red, cardWidth))
 	}
-	b.WriteString("\n  ↑/↓ select agent\n")
+
+	b.WriteString(m.orchestratorTasksCard(sel, cardWidth))
+	b.WriteString(orchestratorChildrenView(sel))
+	return b.String()
+}
+
+// orchestratorAccent picks the card colour from the agent's state, so the
+// pane reads at a glance: green is working, yellow is under review, red
+// stopped, cyan finished.
+func orchestratorAccent(sel widget.OrchestratorAgent) lipgloss.Color {
+	if sel.LastError != "" || sel.State == "blocked" || sel.State == "failed" {
+		return red
+	}
+	switch sel.State {
+	case "auditing", "revising":
+		return yellow
+	case "done", "merged":
+		return cyan
+	default:
+		return green
+	}
+}
+
+// orchestratorCard wraps content in the same bordered card the runners tab
+// uses, so the two widgets read as one design.
+func orchestratorCard(content string, accent lipgloss.Color, width int) string {
+	card := lipgloss.NewStyle().Width(width).Border(lipgloss.RoundedBorder()).
+		BorderLeft(true).BorderForeground(accent).Padding(0, 1).Render(content)
+	return lipgloss.NewStyle().MarginLeft(2).Render(card) + "\n"
+}
+
+// orchestratorTasksCard renders the agent's self-tracked checklist as a card
+// with a progress bar. sel.Tasks is nil while the daemon does not report a
+// checklist; that case must render nothing, because "not reported" is a
+// different fact from "an empty checklist".
+func (m Model) orchestratorTasksCard(sel widget.OrchestratorAgent, width int) string {
+	if sel.Tasks == nil {
+		return ""
+	}
+	head := lipgloss.NewStyle().Bold(true).Foreground(cyan).Render("CHECKLIST")
+	if len(sel.Tasks) == 0 {
+		return orchestratorCard(head+"\n"+dimStyle.Render("no checklist tracked"), muted, width)
+	}
+	done := 0
+	for _, t := range sel.Tasks {
+		if t.Done {
+			done++
+		}
+	}
+	percent := float64(done) / float64(len(sel.Tasks)) * 100
+	var b strings.Builder
+	b.WriteString(head + "  " + bar(percent, 12) + dimStyle.Render(fmt.Sprintf("  %d/%d done", done, len(sel.Tasks))))
+	for _, t := range sel.Tasks {
+		if t.Done {
+			b.WriteString("\n" + okStyle.Render("☑ ") +
+				lipgloss.NewStyle().Strikethrough(true).Foreground(muted).Render(t.Text))
+		} else {
+			b.WriteString("\n" + dimStyle.Render("☐ ") + t.Text)
+		}
+	}
+	return orchestratorCard(b.String(), cyan, width)
+}
+
+// orchestratorChildrenView renders the spark subagent tree under one agent.
+// sel.Children is nil while the daemon does not report children yet; that
+// case must render nothing at all, not an empty heading or a zero count,
+// since a missing report and a report of zero children are different facts.
+func orchestratorChildrenView(sel widget.OrchestratorAgent) string {
+	if sel.Children == nil {
+		return ""
+	}
+	if len(sel.Children) == 0 {
+		return fmt.Sprintf("  %-14s %s\n", "SUBAGENTS", dimStyle.Render("none launched"))
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "  %-14s %d running · %d done · %d failed\n", "SUBAGENTS", sel.ChildrenRunning, sel.ChildrenDone, sel.ChildrenFailed)
+	for _, c := range sel.Children {
+		state := fmt.Sprintf("%-8s", c.State)
+		switch c.State {
+		case "failed":
+			state = errStyle.Render(state)
+		case "running":
+			state = okStyle.Render(state)
+		default:
+			state = dimStyle.Render(state)
+		}
+		fmt.Fprintf(&b, "      %s %-30s %-8s %d in / %d out\n", state, truncate(c.Task, 30), elapsedDuration(time.Duration(c.ElapsedSeconds)*time.Second), c.InputTokens, c.OutputTokens)
+	}
 	return b.String()
 }
 func (m Model) startSSH(index int) tea.Cmd {
@@ -1023,7 +1587,7 @@ func (m Model) loadDesktop(index int) tea.Cmd {
 		case "quality":
 			cols = max(40, min(180, m.width-4))
 		}
-		if inline := emitDesktopImage(b, cols, 24); inline != "" {
+		if inline := emitDesktopImage(b, cols, desktopImageRows(m.height)); inline != "" {
 			return desktopShotMsg{Index: index, Frame: inline}
 		}
 		return desktopShotMsg{Index: index, Frame: ansiFrame(img, cols)}
@@ -1107,7 +1671,7 @@ func (m Model) renderDesktopFrame(index int, b []byte) string {
 			cols = max(40, min(180, m.width-4))
 		}
 	}
-	if inline := emitDesktopImage(b, cols, 24); inline != "" {
+	if inline := emitDesktopImage(b, cols, desktopImageRows(m.height)); inline != "" {
 		return inline
 	}
 	img, err := png.Decode(stdbuf.NewReader(b))
@@ -1116,11 +1680,58 @@ func (m Model) renderDesktopFrame(index int, b []byte) string {
 	}
 	return ansiFrame(img, cols)
 }
+
+func (m Model) rememberDesktopFrameSize(index int, b []byte) {
+	cfg, err := png.DecodeConfig(stdbuf.NewReader(b))
+	if err == nil && cfg.Width > 0 && cfg.Height > 0 {
+		m.desktopFrameSize[index] = image.Point{X: cfg.Width, Y: cfg.Height}
+	}
+}
+
+func (m Model) desktopImageCells(index int) (int, int) {
+	cols := max(40, min(110, m.width-4))
+	if d := m.desktopForServer(index); d != nil {
+		switch d.Quality {
+		case "speed":
+			cols = max(40, min(80, m.width-4))
+		case "quality":
+			cols = max(40, min(180, m.width-4))
+		}
+	}
+	return cols, desktopImageRows(m.height)
+}
+
+// desktopImageOrigin derives the rendered image's terminal-cell origin from
+// the same detail view used for drawing, so headers/tabs/scrolling stay in sync.
+func (m Model) desktopImageOrigin(index int) (int, int, bool) {
+	if index < 0 || index >= len(m.cfg.Servers) || m.desktopFrames[index] == "" {
+		return 0, 0, false
+	}
+	body := m.detailView()
+	pos := strings.Index(body, m.desktopFrames[index])
+	if pos < 0 {
+		return 0, 0, false
+	}
+	return 0, lipgloss.Height(m.header()) + lipgloss.Height(body[:pos]) - m.detailScroll, true
+}
+
+func desktopImageRows(height int) int {
+	return max(8, min(40, height-12))
+}
 func isRemoteDesktopKey(key string) bool {
-	if key == "q" || key == "ctrl+c" || key == "esc" || key == "tab" || key == "8" || key == "c" {
+	// These keys belong to the TUI desktop-tab controls. Keep them out of
+	// the remote input path so Enter actually opens the persistent stream.
+	if key == "q" || key == "ctrl+c" || key == "esc" || key == "tab" || key == "8" || key == "c" || key == "enter" || key == "return" || key == "right" || key == "l" || key == "left" || key == "h" {
 		return false
 	}
 	return key != "" && key != "up" && key != "down" && key != "left" && key != "right" || key == "up" || key == "down" || key == "left" || key == "right"
+}
+
+func leavesDesktopTab(key string) bool {
+	if key == "8" {
+		return false
+	}
+	return key == "tab" || key == "1" || key == "2" || key == "3" || key == "4" || key == "5" || key == "6" || key == "7" || key == "9" || key == "d" || key == "o" || key == "s" || key == "esc" || key == "left" || key == "h" || key == "x" || key == "q" || key == "ctrl+c"
 }
 func (m Model) sendDesktopKey(index int, combo string) tea.Cmd {
 	return func() tea.Msg {
@@ -1146,10 +1757,30 @@ func (m Model) sendDesktopKey(index int, combo string) tea.Cmd {
 		return nil
 	}
 }
+func (m Model) sendDesktopClipboard(index int) tea.Cmd {
+	return func() tea.Msg {
+		text, err := localClipboard()
+		if err != nil || text == "" {
+			return nil
+		}
+		if stream := m.desktopStreams[index]; stream != nil {
+			_ = stream.ClipboardSet(text)
+			return nil
+		}
+		// Clipboard writes are supported by the persistent stream. The legacy
+		// screenshot/control endpoint has no clipboard route, so do not invent
+		// one or silently broaden its mutation surface.
+		return nil
+	}
+}
 func (m Model) sendDesktopClick(index, x, y int, right bool) tea.Cmd {
 	return func() tea.Msg {
+		remoteX, remoteY, ok := m.desktopRemotePoint(index, x, y)
+		if !ok {
+			return nil
+		}
 		if stream := m.desktopStreams[index]; stream != nil {
-			_ = stream.Click(x, y, right)
+			_ = stream.Click(remoteX, remoteY, right)
 			return nil
 		}
 		d := m.desktopForServer(index)
@@ -1166,12 +1797,27 @@ func (m Model) sendDesktopClick(index, x, y int, right bool) tea.Cmd {
 			}
 			token = strings.TrimSpace(string(b))
 		}
-		remoteX := max(0, min(1279, x*1280/max(1, m.width)))
-		remoteY := max(0, min(799, (y-10)*800/24))
 		_ = right
 		_ = desktopclient.Click(context.Background(), *d, token, remoteX, remoteY)
 		return nil
 	}
+}
+
+func (m Model) desktopRemotePoint(index, x, y int) (int, int, bool) {
+	cols, rows := m.desktopImageCells(index)
+	ox, oy, ok := m.desktopImageOrigin(index)
+	if !ok {
+		return 0, 0, false
+	}
+	relX, relY := x-ox, y-oy
+	if relX < 0 || relY < 0 || relX >= cols || relY >= rows {
+		return 0, 0, false
+	}
+	size := m.desktopFrameSize[index]
+	if size.X <= 0 || size.Y <= 0 {
+		size = image.Point{X: 1280, Y: 800}
+	}
+	return min(size.X-1, relX*size.X/max(1, cols)), min(size.Y-1, relY*size.Y/max(1, rows)), true
 }
 func (m Model) nextDesktop(index int) tea.Cmd {
 	d := m.desktopForServer(index)
@@ -1235,6 +1881,25 @@ func openDesktop(desktop *config.Desktop) tea.Cmd {
 		return nil
 	}
 }
+
+// openURL opens one web URL in the OS default browser. It runs no
+// user-supplied command; it only ever passes url to "open" or "xdg-open",
+// the same pattern openDesktop uses for a vnc:// URI. An empty url is a
+// no-op, so a caller with no real link (for example no pull request yet)
+// can never launch a wrong or half-built page.
+func openURL(url string) tea.Cmd {
+	return func() tea.Msg {
+		if url == "" {
+			return nil
+		}
+		if runtime.GOOS == "darwin" {
+			_ = exec.Command("open", url).Run()
+		} else {
+			_ = exec.Command("xdg-open", url).Run()
+		}
+		return nil
+	}
+}
 func setLocalClipboard(text string) {
 	if runtime.GOOS == "darwin" {
 		cmd := exec.Command("pbcopy")
@@ -1242,11 +1907,48 @@ func setLocalClipboard(text string) {
 		_ = cmd.Run()
 		return
 	}
+	if _, err := exec.LookPath("wl-copy"); err == nil {
+		cmd := exec.Command("wl-copy")
+		cmd.Stdin = strings.NewReader(text)
+		if cmd.Run() == nil {
+			return
+		}
+	}
 	if _, err := exec.LookPath("xclip"); err == nil {
 		cmd := exec.Command("xclip", "-selection", "clipboard")
 		cmd.Stdin = strings.NewReader(text)
+		if cmd.Run() == nil {
+			return
+		}
+	}
+	if _, err := exec.LookPath("xsel"); err == nil {
+		cmd := exec.Command("xsel", "--clipboard", "--input")
+		cmd.Stdin = strings.NewReader(text)
 		_ = cmd.Run()
 	}
+}
+func localClipboard() (string, error) {
+	if runtime.GOOS == "darwin" {
+		out, err := exec.Command("pbpaste").Output()
+		return string(out), err
+	}
+	if _, err := exec.LookPath("wl-paste"); err == nil {
+		out, err := exec.Command("wl-paste", "--no-newline").Output()
+		if err == nil {
+			return string(out), nil
+		}
+	}
+	if _, err := exec.LookPath("xclip"); err == nil {
+		out, err := exec.Command("xclip", "-selection", "clipboard", "-o").Output()
+		if err == nil {
+			return string(out), nil
+		}
+	}
+	if _, err := exec.LookPath("xsel"); err == nil {
+		out, err := exec.Command("xsel", "--clipboard", "--output").Output()
+		return string(out), err
+	}
+	return "", fmt.Errorf("no clipboard reader available")
 }
 func openSSH(server config.Server) tea.Cmd {
 	args := []string{"-o", "BatchMode=yes"}
@@ -1521,6 +2223,24 @@ func spark(h []metrics.Sample, value func(metrics.Sample) float64) string {
 			continue
 		}
 		i := int(math.Round(math.Max(0, math.Min(100, value(s))) / 100 * 7))
+		b.WriteRune(chars[i])
+	}
+	return b.String()
+}
+
+// sparkValues renders a compact trend line for a series already scaled to a
+// 0-100 range. It mirrors spark()'s character ramp and window size; a
+// sibling function is needed because spark() is tied to []metrics.Sample,
+// while this caller's series (per-agent CPU/memory) has no Sample type.
+func sparkValues(values []float64) string {
+	chars := []rune("▁▂▃▄▅▆▇█")
+	if len(values) == 0 {
+		return ""
+	}
+	start := max(0, len(values)-18)
+	var b strings.Builder
+	for _, v := range values[start:] {
+		i := int(math.Round(math.Max(0, math.Min(100, v)) / 100 * 7))
 		b.WriteRune(chars[i])
 	}
 	return b.String()

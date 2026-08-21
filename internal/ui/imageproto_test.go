@@ -19,3 +19,16 @@ func TestEmitDesktopImageProtocols(t *testing.T) {
 		})
 	}
 }
+
+func TestClearDesktopImageOnlyTargetsKittyPlacement(t *testing.T) {
+	old := os.Getenv("SERVTERM_DESKTOP_RENDER")
+	defer os.Setenv("SERVTERM_DESKTOP_RENDER", old)
+	_ = os.Setenv("SERVTERM_DESKTOP_RENDER", "kitty")
+	if got := clearDesktopImage(); got != "\x1b_Ga=d,d=I,i=1,q=2\x1b\\" {
+		t.Fatalf("kitty clear sequence = %q", got)
+	}
+	_ = os.Setenv("SERVTERM_DESKTOP_RENDER", "iterm2")
+	if got := clearDesktopImage(); got != "" {
+		t.Fatalf("non-Kitty clear sequence = %q", got)
+	}
+}

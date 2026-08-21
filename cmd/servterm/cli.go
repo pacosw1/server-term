@@ -360,16 +360,31 @@ func cliWidgets(ctx context.Context, cfg config.Config, wanted string, jsonOut b
 		if err != nil {
 			return fmt.Errorf("%s: %w", provider.Name, err)
 		}
-		snapshot := widget.FetchNVR(ctx, provider, token)
-		if snapshot.Error != "" {
-			failed = true
-		}
-		if jsonOut {
-			if err := printJSON(snapshot); err != nil {
-				return err
+		switch provider.Type {
+		case "orchestrator":
+			snapshot := widget.FetchOrchestrator(ctx, provider, token)
+			if snapshot.Error != "" {
+				failed = true
 			}
-		} else {
-			fmt.Printf("%-20s %s  streams %d/%d  CPU %.1f%%\n", snapshot.Name, map[bool]string{true: "healthy", false: "degraded"}[snapshot.Healthy], snapshot.LiveStreams, snapshot.TotalStreams, snapshot.CPUPercent)
+			if jsonOut {
+				if err := printJSON(snapshot); err != nil {
+					return err
+				}
+			} else {
+				fmt.Printf("%-20s %s  %s  agents %d live  spend %s  CPU %.1f%%\n", snapshot.Name, map[bool]string{true: "healthy", false: "degraded"}[snapshot.Healthy], snapshot.AccountLabel(), snapshot.Totals.Live, snapshot.CostText(), snapshot.Daemon.CPUPercent)
+			}
+		default:
+			snapshot := widget.FetchNVR(ctx, provider, token)
+			if snapshot.Error != "" {
+				failed = true
+			}
+			if jsonOut {
+				if err := printJSON(snapshot); err != nil {
+					return err
+				}
+			} else {
+				fmt.Printf("%-20s %s  streams %d/%d  CPU %.1f%%\n", snapshot.Name, map[bool]string{true: "healthy", false: "degraded"}[snapshot.Healthy], snapshot.LiveStreams, snapshot.TotalStreams, snapshot.CPUPercent)
+			}
 		}
 	}
 	if wanted != "" {

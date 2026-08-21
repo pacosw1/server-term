@@ -2,6 +2,7 @@ package desktopclient
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 
 	vnc "github.com/mitchellh/go-vnc"
@@ -61,10 +62,6 @@ func (h *HextileEncoding) Read(c *vnc.ClientConn, rect *vnc.Rectangle, r io.Read
 					return nil, err
 				}
 				for i := 0; i < int(n[0]); i++ {
-					var xywh [2]byte
-					if _, err := io.ReadFull(r, xywh[:]); err != nil {
-						return nil, err
-					}
 					col := fg
 					if bits&16 != 0 {
 						var err error
@@ -72,6 +69,10 @@ func (h *HextileEncoding) Read(c *vnc.ClientConn, rect *vnc.Rectangle, r io.Read
 						if err != nil {
 							return nil, err
 						}
+					}
+					var xywh [2]byte
+					if _, err := io.ReadFull(r, xywh[:]); err != nil {
+						return nil, err
 					}
 					sx := uint16(xywh[0] >> 4)
 					sy := uint16(xywh[0] & 15)
@@ -96,7 +97,11 @@ func min16(a, b uint16) uint16 {
 }
 func readPixel(c *vnc.ClientConn, r io.Reader) (vnc.Color, error) {
 	n := int(c.PixelFormat.BPP / 8)
-	buf := make([]byte, n)
+	var storage [4]byte
+	if n < 1 || n > len(storage) {
+		return vnc.Color{}, fmt.Errorf("unsupported VNC pixel width %d", n)
+	}
+	buf := storage[:n]
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return vnc.Color{}, err
 	}

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,10 +45,15 @@ type Server struct {
 	TokenFile    string   `yaml:"token_file,omitempty"`
 }
 
-// Widget is a read-only external provider. NVR is the first supported type.
+// Widget is a read-only external provider. Supported types are nvr and
+// orchestrator.
 type Widget struct {
-	Name      string `yaml:"name"`
-	Type      string `yaml:"type"`
+	Name string `yaml:"name"`
+	Type string `yaml:"type"`
+	// Host is the address of the server that runs this provider. It names
+	// the one server whose detail view shows the widget. Leave it empty
+	// when the endpoint already points at that server.
+	Host      string `yaml:"host,omitempty"`
 	Endpoint  string `yaml:"endpoint"`
 	TokenEnv  string `yaml:"token_env,omitempty"`
 	TokenFile string `yaml:"token_file,omitempty"`
@@ -69,6 +75,21 @@ type Desktop struct {
 	Backend   string `yaml:"backend,omitempty"`
 	RefreshFPS int `yaml:"refresh_fps,omitempty"`
 	Quality string `yaml:"quality,omitempty"`
+}
+
+// HostAddress is the server address this widget belongs to. An explicit
+// host wins. Otherwise the endpoint names the machine that runs the
+// provider. It returns "" when neither gives a host, so a caller shows the
+// widget on no server instead of on every server.
+func (w Widget) HostAddress() string {
+	if h := strings.TrimSpace(w.Host); h != "" {
+		return h
+	}
+	u, err := url.Parse(strings.TrimSpace(w.Endpoint))
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
 }
 
 func DefaultPath() string {
@@ -157,8 +178,8 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(w.Name) == "" || strings.TrimSpace(w.Endpoint) == "" {
 			return fmt.Errorf("%s.name and endpoint are required", p)
 		}
-		if w.Type != "nvr" {
-			return fmt.Errorf("%s.type must be nvr", p)
+		if w.Type != "nvr" && w.Type != "orchestrator" {
+			return fmt.Errorf("%s.type must be nvr or orchestrator", p)
 		}
 		if (w.TokenEnv == "") == (w.TokenFile == "") {
 			return fmt.Errorf("%s requires exactly one of token_env or token_file", p)

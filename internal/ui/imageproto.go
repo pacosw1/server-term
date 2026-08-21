@@ -66,3 +66,11 @@ func emitDesktopImage(src []byte, cols, rows int) string {
 		return ""
 	}
 }
+
+// clearDesktopImage removes the fixed Kitty placement used by desktop frames.
+func clearDesktopImage() string {
+	if detectDesktopImageProto() != desktopKitty {
+		return ""
+	}
+	return "\x1b_Ga=d,d=I,i=1,q=2\x1b\\"
+}

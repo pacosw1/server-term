@@ -72,9 +72,10 @@ servterm --config "$HOME/Library/Application Support/servterm/config.yaml" mcp
 
 Register that command with the MCP configuration used by Codex or Claude. It
 provides `servterm_list_servers`, `servterm_status`, `servterm_history`,
-`servterm_stream`, `servterm_list_desktops`, `servterm_desktop_status`, and
-`servterm_nvr_status`. Stream calls are bounded to ten samples and there are no
-arbitrary shell, SSH, desktop-input, or credential-reading tools.
+`servterm_stream`, `servterm_list_desktops`, `servterm_desktop_status`,
+`servterm_nvr_status`, and `servterm_orchestrator_status`. Stream calls are
+bounded to ten samples and there are no arbitrary shell, SSH, desktop-input,
+or credential-reading tools.
 
 `servterm ssh NAME` hands the terminal directly to the configured OpenSSH
 connection (and accepts extra SSH arguments). It is the low-latency terminal-
@@ -103,6 +104,74 @@ Query its normalized snapshot with `servterm widget --host office-nvr --json`.
 The provider calls only authenticated `GET /api/stats`; it does not execute
 plugin code or expose NVR control actions. It reports stream liveness, drops,
 disk/archive usage, and nvrd CPU/RSS.
+
+### Agent orchestrator widget provider
+
+Add an agent orchestrator status provider to the inventory:
+
+```yaml
+widgets:
+  - name: pitsa-agents
+    type: orchestrator
+    endpoint: http://100.93.34.43:7844
+    token_file: ~/Library/Application Support/servterm/tokens/pitsa-agents
+```
+
+The AGENTS tab appears only in the detail view of the server that runs the
+daemon. servterm finds that server by the endpoint host. Add `host: <server
+address>` to the widget when the endpoint points somewhere else, for example
+through a local port forward.
+
+Query its normalized snapshot with `servterm widget --host pitsa-agents --json`.
+Reading is entirely `GET /api/status`; it never starts, stops, or steers an
+agent. It reports which account is paying (a subscription plan, an API key,
+or unknown), the daemon mode, the weekly and five-hour subscription plan
+usage, the daemon host's overall disk usage, and the live agent list (issue,
+state, cycle, branch, worktree path and its disk usage, PR, weekly plan
+share, turns, last activity, tokens, cost, PID, CPU/RSS, and the last error)
+including any spark subagents a task launched and any self-tracked task
+checklist.
+
+The widget has exactly one write: `POST /api/mode`, to switch the daemon
+between `fast` (full fanout), `economy` (one third), and `paused` (takes no
+new work; agents already running finish their task — it is not a kill
+switch). Every mode only reduces work; none can raise fanout or spend, turn
+on autoMerge, or change the repository, so a mistaken or hostile call can do
+no worse than quiet the daemon down. Nothing else on the daemon is remotely
+writable — budgets, fanout limits, `autoMerge`, the repository, and the
+model stay in the config file on the machine, changed only by an operator
+with ssh.
+
+**The dollar figure is not always real money.** On a subscription account a
+per-call price does not exist, so the figure is a computed estimate
+(`tokens × a constant`), marked `est ~$X/$Y day`. An API key account's
+figure is real billed spend, shown plainly with no `~`. An account the
+daemon could not identify is still treated as billed, shown as
+`$X/$Y day billed` — it is never marked as an estimate, since that would
+hide real spending. `servterm widget` prints which account is in use right
+next to the figure (`codex pro`, `api key`, or `unknown account`).
+
+In the interactive TUI, open a server's detail view and press `o` (or `tab`
+to cycle) to reach the AGENTS tab. Use `up`/`down` (or `j`/`k`) to select an
+agent; the selected agent's full detail — including its worktree path and
+disk usage, a live CPU/memory trend, its spark subagent tree, and its task
+checklist (done items struck through) when present — is shown below the
+list. Press `i` to open the selected agent's GitHub issue in the browser, or
+`p` to open its pull request (a no-op when it has none yet). Press `m` to
+open the mode menu: `up`/`down` (or `j`/`k`) highlights `fast`/`economy`/
+`paused`, one `Enter` arms the change, a second `Enter` sends it, and `Esc`
+cancels at any point before that second `Enter`. The daemon's own success or
+error text is shown, never an invented one, and the header's mode only
+updates once the daemon confirms it, not on the local request.
+
+Three fields are still daemon-side work in progress and render nothing until
+the daemon sends them, exactly like the fields above: `disk` (host disk
+usage), an agent's `worktree`/`worktree_disk_bytes`, and an agent's `tasks`
+checklist. `tasks` is `[{"text": "...", "done": false}]`; a hook that keeps
+an agent's own checklist current (reminding it to add and check off steps as
+it works) is orchestrator/agent-runtime behavior, not something this TUI
+repo can provide — the daemon just needs to publish whatever checklist state
+it already has under `tasks` for the widget to display it.
 
 ### Desktop agents
 

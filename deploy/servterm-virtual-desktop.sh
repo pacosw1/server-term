@@ -8,4 +8,4 @@ trap 'kill "$xvfb" 2>/dev/null || true; kill "$wm" "$term" 2>/dev/null || true' 
 sleep 1
 DISPLAY="$display" openbox-session >/run/servterm-desktop/openbox.log 2>&1 & wm=$!
 DISPLAY="$display" xterm -geometry 120x35+20+20 -title ServtermVirtualDesktop >/run/servterm-desktop/xterm.log 2>&1 & term=$!
-exec x11vnc -display "$display" -localhost -rfbport 5900 -nopw -forever -shared -noxdamage
+exec x11vnc -display "$display" -localhost -rfbport 5900 -nopw -forever -shared -noxdamage -wait 5 -defer 0
