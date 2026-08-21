@@ -10,6 +10,10 @@ import (
 )
 
 type Tool struct{ ID, Description, Command, LinuxPackage, MacPackage string }
+type State struct {
+	Installed bool   `json:"installed"`
+	Version   string `json:"version,omitempty"`
+}
 
 var Catalog = []Tool{
 	{"git", "source control", "git", "git", "git"}, {"gh", "GitHub CLI", "gh", "gh", "gh"}, {"curl", "HTTP client", "curl", "curl", "curl"}, {"wget", "HTTP downloader", "wget", "wget", "wget"}, {"jq", "JSON processor", "jq", "jq", "jq"}, {"ripgrep", "fast code search", "rg", "ripgrep", "ripgrep"}, {"fd", "fast file finder", "fd", "fd-find", "fd"}, {"fzf", "fuzzy finder", "fzf", "fzf", "fzf"}, {"tmux", "terminal multiplexer", "tmux", "tmux", "tmux"}, {"htop", "process viewer", "htop", "htop", "htop"}, {"btop", "resource viewer", "btop", "btop", "btop"}, {"tree", "directory tree", "tree", "tree", "tree"}, {"unzip", "ZIP extractor", "unzip", "unzip", "unzip"}, {"python", "Python runtime", "python3", "python3", "python"}, {"node", "Node.js runtime", "node", "nodejs", "node"}, {"npm", "Node package manager", "npm", "npm", "npm"}, {"go", "Go toolchain", "go", "golang", "go"}, {"zsh", "Z shell", "zsh", "zsh", "zsh"}, {"neovim", "terminal editor", "nvim", "neovim", "neovim"}, {"shellcheck", "shell linter", "shellcheck", "shellcheck", "shellcheck"},
@@ -25,20 +29,34 @@ func Find(id string) (Tool, bool) {
 	return Tool{}, false
 }
 func Status(ctx context.Context, server config.Server) (map[string]bool, error) {
+	detailed, err := StatusDetailed(ctx, server)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for k, v := range detailed {
+		out[k] = v.Installed
+	}
+	return out, nil
+}
+func StatusDetailed(ctx context.Context, server config.Server) (map[string]State, error) {
 	ids := make([]string, len(Catalog))
 	for i, t := range Catalog {
 		ids[i] = t.Command
 	}
-	script := `for c in ` + strings.Join(ids, " ") + `; do if command -v "$c" >/dev/null 2>&1; then printf '%s\ttrue\n' "$c"; else printf '%s\tfalse\n' "$c"; fi; done`
+	script := `for c in ` + strings.Join(ids, " ") + `; do if command -v "$c" >/dev/null 2>&1; then v=$("$c" --version 2>/dev/null | head -1 | tr '\t' ' '); printf '%s\ttrue\t%s\n' "$c" "$v"; else printf '%s\tfalse\t\n' "$c"; fi; done`
 	out, err := ssh(ctx, server, script)
 	if err != nil {
 		return nil, err
 	}
-	result := map[string]bool{}
+	result := map[string]State{}
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		p := strings.SplitN(line, "\t", 2)
-		if len(p) == 2 {
-			result[p[0]] = p[1] == "true"
+		if len(p) >= 2 {
+			result[p[0]] = State{Installed: p[1] == "true"}
+			if len(p) > 2 {
+				result[p[0]] = State{Installed: p[1] == "true", Version: p[2]}
+			}
 		}
 	}
 	return result, nil

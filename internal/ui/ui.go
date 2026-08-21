@@ -78,40 +78,42 @@ type sshStartMsg struct {
 	Err  error
 }
 type devtoolStatusMsg struct {
-	Status map[string]bool
-	Err    error
+	Status   map[string]bool
+	Versions map[string]string
+	Err      error
 }
 type devtoolActionMsg struct {
 	Tool, Action, Output string
 	Err                  error
 }
 type Model struct {
-	cfg            config.Config
-	collector      collector.Collector
-	samples        []metrics.Sample
-	history        [][]metrics.Sample
-	cursor         int
-	detail         bool
-	detailTab      int
-	detailScroll   int
-	rangeIndex     int
-	displayCPU     []float64
-	displayCores   [][]float64
-	streamBuffers  [][]metrics.Sample
-	desktopFrames  map[int]string
-	desktopErrors  map[int]string
-	desktopStreams map[int]*desktopclient.Stream
-	ssh            *sshPane
-	sshText        string
-	devtoolCursor  int
-	devtoolStatus  map[string]bool
-	devtoolConfirm string
-	devtoolMessage string
-	devtoolBusy    bool
-	width, height  int
-	collecting     bool
-	pending        int
-	lastRefresh    time.Time
+	cfg             config.Config
+	collector       collector.Collector
+	samples         []metrics.Sample
+	history         [][]metrics.Sample
+	cursor          int
+	detail          bool
+	detailTab       int
+	detailScroll    int
+	rangeIndex      int
+	displayCPU      []float64
+	displayCores    [][]float64
+	streamBuffers   [][]metrics.Sample
+	desktopFrames   map[int]string
+	desktopErrors   map[int]string
+	desktopStreams  map[int]*desktopclient.Stream
+	ssh             *sshPane
+	sshText         string
+	devtoolCursor   int
+	devtoolStatus   map[string]bool
+	devtoolVersions map[string]string
+	devtoolConfirm  string
+	devtoolMessage  string
+	devtoolBusy     bool
+	width, height   int
+	collecting      bool
+	pending         int
+	lastRefresh     time.Time
 }
 
 func New(cfg config.Config) Model {
@@ -121,7 +123,7 @@ func New(cfg config.Config) Model {
 			n++
 		}
 	}
-	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, collecting: n > 0, pending: n}
+	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, devtoolVersions: map[string]string{}, collecting: n > 0, pending: n}
 }
 func (m Model) Init() tea.Cmd { return tea.Batch(append(m.collectAll(), m.nextFrame())...) }
 func (m Model) nextFrame() tea.Cmd {
@@ -240,6 +242,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter", "i":
 				if m.devtoolConfirm == "install" {
 					m.devtoolConfirm = ""
+					m.devtoolBusy = true
 					return m, m.runDevtoolAction(m.cursor, m.devtoolCursor, false)
 				}
 				m.devtoolConfirm = "install"
@@ -247,6 +250,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "u":
 				if m.devtoolConfirm == "uninstall" {
 					m.devtoolConfirm = ""
+					m.devtoolBusy = true
 					return m, m.runDevtoolAction(m.cursor, m.devtoolCursor, true)
 				}
 				m.devtoolConfirm = "uninstall"
@@ -387,6 +391,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.devtoolMessage = "status error: " + msg.Err.Error()
 		} else {
 			m.devtoolStatus = msg.Status
+			m.devtoolVersions = msg.Versions
 			m.devtoolMessage = ""
 		}
 		return m, nil
@@ -794,14 +799,26 @@ func (m Model) devtoolsView() string {
 	b.WriteString("  DEV TOOLS\n\n  TOOL           STATUS       DESCRIPTION\n")
 	for i, t := range devtools.Catalog {
 		state := "missing"
+		stateStyle := errStyle
 		if m.devtoolStatus[t.Command] {
 			state = "installed"
+			stateStyle = okStyle
 		}
-		mark := "  "
+		version := m.devtoolVersions[t.Command]
+		if version == "" {
+			version = "—"
+		}
+		lineStyle := lipgloss.NewStyle()
 		if i == m.devtoolCursor {
-			mark = "› "
+			lineStyle = lipgloss.NewStyle().Background(panel).Bold(true).Foreground(cyan)
 		}
-		fmt.Fprintf(&b, "%s%-14s %-11s %s\n", mark, t.ID, state, t.Description)
+		b.WriteString(lineStyle.Render(fmt.Sprintf("  %-14s ", t.ID)))
+		b.WriteString(stateStyle.Render(fmt.Sprintf("%-11s", state)))
+		b.WriteString(dimStyle.Render(fmt.Sprintf(" %-18s", version)))
+		b.WriteString(lineStyle.Render("  " + t.Description + "\n"))
+	}
+	if m.devtoolBusy {
+		b.WriteString(warnStyle.Render("\n  ◌ working…\n"))
 	}
 	if m.devtoolConfirm != "" {
 		fmt.Fprintf(&b, "\n  Confirm %s: press Enter again; Esc cancels.\n", m.devtoolConfirm)
@@ -861,8 +878,14 @@ func (m Model) loadDevtoolsStatus(index int) tea.Cmd {
 		if index < 0 || index >= len(m.cfg.Servers) {
 			return devtoolStatusMsg{Err: fmt.Errorf("no server")}
 		}
-		status, err := devtools.Status(context.Background(), m.cfg.Servers[index])
-		return devtoolStatusMsg{Status: status, Err: err}
+		detailed, err := devtools.StatusDetailed(context.Background(), m.cfg.Servers[index])
+		status := map[string]bool{}
+		versions := map[string]string{}
+		for k, v := range detailed {
+			status[k] = v.Installed
+			versions[k] = v.Version
+		}
+		return devtoolStatusMsg{Status: status, Versions: versions, Err: err}
 	}
 }
 func (m Model) runDevtoolAction(index, cursor int, remove bool) tea.Cmd {
