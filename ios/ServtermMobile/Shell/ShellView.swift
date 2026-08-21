@@ -50,14 +50,7 @@ struct ShellView: View {
                         .onReceive(mirrorTimer) { _ in screenMirror = bridge.screenText() }
                 }
                 #endif
-                TerminalScreen(
-                    // A key from the system keyboard goes through the same
-                    // sticky control and alt state as a key from the row.
-                    // Without this, holding ctrl and typing c sent the
-                    // letter c instead of the interrupt.
-                    onInput: { bytes in shell.send(row.resolveTyped(bytes).bytes) },
-                    onResize: { columns, rows in shell.resize(columns: columns, rows: rows) },
-                    bridge: bridge)
+                TerminalScreen(bridge: bridge)
                     .background(Theme.base)
                 KeyRowView(row: $row) { bytes in shell.send(bytes) }
             }
@@ -67,7 +60,15 @@ struct ShellView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             shell.prepare(comment: ShellIdentityBootstrap.comment)
+            // One bridge, both directions, all set once when the screen
+            // appears rather than during a view update.
             shell.onOutput = { [bridge] bytes in bridge.feed(bytes) }
+            // A key from the system keyboard goes through the same sticky
+            // control and alt state as a key from the row. Without this,
+            // holding ctrl and typing c sent the letter c, not the
+            // interrupt.
+            bridge.onInput = { bytes in shell.send(row.resolveTyped(bytes).bytes) }
+            bridge.onResize = { columns, rows in shell.resize(columns: columns, rows: rows) }
             shell.connect(server: server, session: session, columns: 80, rows: 24)
         }
         .onDisappear { shell.leave() }

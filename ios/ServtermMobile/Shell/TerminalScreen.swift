@@ -4,12 +4,11 @@ import UIKit
 
 /// TerminalScreen puts the SwiftTerm view on the screen. SwiftTerm parses
 /// the escape sequences; the app writes no VT parser of its own.
+///
+/// Everything the view says and everything it hears goes through one
+/// bridge, so the screen holds no closures that a later update could leave
+/// behind.
 struct TerminalScreen: UIViewRepresentable {
-    let onInput: ([UInt8]) -> Void
-    let onResize: (Int, Int) -> Void
-    /// bridge is the object that carries the bytes of the host into this
-    /// view. The view registers itself with it, so nothing depends on a
-    /// closure handed back during a view update.
     let bridge: TerminalBridge
 
     func makeUIView(context: Context) -> TerminalView {
@@ -32,36 +31,39 @@ struct TerminalScreen: UIViewRepresentable {
     func updateUIView(_ view: TerminalView, context: Context) {}
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onInput: onInput, onResize: onResize)
+        Coordinator(bridge: bridge)
     }
 
-    /// Coordinator carries the keystrokes and the size changes back.
+    /// Coordinator hands every event of the view to the bridge. It holds
+    /// the bridge itself, not a copy of a closure, so there is nothing that
+    /// can point at a screen that has gone.
+    @MainActor
     final class Coordinator: NSObject, TerminalViewDelegate {
-        private let onInput: ([UInt8]) -> Void
-        private let onResize: (Int, Int) -> Void
+        private let bridge: TerminalBridge
 
-        init(onInput: @escaping ([UInt8]) -> Void, onResize: @escaping (Int, Int) -> Void) {
-            self.onInput = onInput
-            self.onResize = onResize
+        init(bridge: TerminalBridge) {
+            self.bridge = bridge
         }
 
-        func send(source: TerminalView, data: ArraySlice<UInt8>) {
-            onInput(Array(data))
+        nonisolated func send(source: TerminalView, data: ArraySlice<UInt8>) {
+            let bytes = Array(data)
+            MainActor.assumeIsolated { bridge.input(bytes) }
         }
 
-        func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
-            onResize(newCols, newRows)
+        nonisolated func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
+            MainActor.assumeIsolated { bridge.resized(columns: newCols, rows: newRows) }
         }
 
-        func setTerminalTitle(source: TerminalView, title: String) {}
-        func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
-        func scrolled(source: TerminalView, position: Double) {}
-        func clipboardCopy(source: TerminalView, content: Data) {
-            UIPasteboard.general.string = String(data: content, encoding: .utf8)
+        nonisolated func setTerminalTitle(source: TerminalView, title: String) {}
+        nonisolated func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
+        nonisolated func scrolled(source: TerminalView, position: Double) {}
+        nonisolated func clipboardCopy(source: TerminalView, content: Data) {
+            let text = String(data: content, encoding: .utf8)
+            MainActor.assumeIsolated { UIPasteboard.general.string = text }
         }
-        func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
-        func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
-        func bell(source: TerminalView) {}
-        func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {}
+        nonisolated func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
+        nonisolated func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
+        nonisolated func bell(source: TerminalView) {}
+        nonisolated func iTermContent(source: TerminalView, content: ArraySlice<UInt8>) {}
     }
 }
