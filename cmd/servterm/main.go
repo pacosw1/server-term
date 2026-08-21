@@ -11,12 +11,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/franciscosainzwilliams/server-term/internal/config"
+	"github.com/franciscosainzwilliams/server-term/internal/mcp"
 	"github.com/franciscosainzwilliams/server-term/internal/ui"
 )
 
 func isCLICommand(command string) bool {
 	switch command {
-	case "status", "inspect", "history", "watch", "stream", "doctor", "widget", "desktop", "ssh", "shell":
+	case "status", "inspect", "history", "watch", "stream", "doctor", "widget", "desktop", "ssh", "shell", "mcp":
 		return true
 	}
 	return false
@@ -55,6 +56,9 @@ func run() error {
 	if len(args) > 0 && args[0] == "validate" {
 		fmt.Printf("✓ %s: %d servers, refresh every %s\n", *path, len(cfg.Servers), cfg.RefreshInterval)
 		return nil
+	}
+	if len(args) > 0 && args[0] == "mcp" {
+		return mcp.Server{Config: cfg}.Run(context.Background(), os.Stdin, os.Stdout)
 	}
 	if len(args) > 0 {
 		if isCLICommand(args[0]) {

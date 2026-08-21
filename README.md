@@ -60,6 +60,22 @@ manager, `nohup`, or a shell supervisor to run it in the background and restart
 it. The output file is append-only and mode `0600`; each line has
 `schema_version`, `server`, and `sample` fields.
 
+### MCP for Codex/Claude
+
+Run Servterm as a local stdio MCP server. The MCP process reads the protected
+inventory and token files locally; models receive only sanitized read-only
+results, never SSH keys or bearer tokens:
+
+```sh
+servterm --config "$HOME/Library/Application Support/servterm/config.yaml" mcp
+```
+
+Register that command with the MCP configuration used by Codex or Claude. It
+provides `servterm_list_servers`, `servterm_status`, `servterm_history`,
+`servterm_stream`, `servterm_list_desktops`, `servterm_desktop_status`, and
+`servterm_nvr_status`. Stream calls are bounded to ten samples and there are no
+arbitrary shell, SSH, desktop-input, or credential-reading tools.
+
 `servterm ssh NAME` hands the terminal directly to the configured OpenSSH
 connection (and accepts extra SSH arguments). It is the low-latency terminal-
 only path; desktop capture/control is intentionally a separate surface.
