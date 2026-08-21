@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import ServtermKit
 import ServtermSSH
@@ -6,9 +7,13 @@ import ServtermSSH
 /// that writes to a host, and it writes only what the user types.
 struct ShellView: View {
     @Environment(AppModel.self) private var model
-    @State private var shell = ShellModel()
+    @State private var shell: ShellModel = UITestSupport.usesFakeShell
+        ? UITestSupport.makeShellModel(session: "")
+        : ShellModel()
     @State private var row = KeyRowState()
-    @State private var feed: (([UInt8]) -> Void)?
+    @State private var bridge = TerminalBridge()
+    @State private var screenMirror = ""
+    private let mirrorTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     let server: ServerEntry
     let session: String
 
@@ -21,10 +26,38 @@ struct ShellView: View {
                         .padding()
                 }
             } else {
+                if UITestSupport.usesFakeShell {
+                    // The test reads what the transport received from here.
+                    Text(FakeShellLog.shared.received)
+                        .accessibilityIdentifier("fake-input-log")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(3)
+                        .padding(.horizontal, 8)
+                    Text(FakeShellLog.shared.resizes)
+                        .accessibilityIdentifier("fake-resize-log")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                        .padding(.horizontal, 8)
+                    // What the terminal itself holds, read back from
+                    // SwiftTerm, so a test can see that it parsed the
+                    // bytes rather than trusting the model.
+                    Text(screenMirror)
+                        .accessibilityIdentifier("fake-screen-mirror")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(3)
+                        .padding(.horizontal, 8)
+                        .onReceive(mirrorTimer) { _ in screenMirror = bridge.screenText() }
+                }
                 TerminalScreen(
-                    onInput: { shell.send($0) },
+                    // A key from the system keyboard goes through the same
+                    // sticky control and alt state as a key from the row.
+                    // Without this, holding ctrl and typing c sent the
+                    // letter c instead of the interrupt.
+                    onInput: { bytes in shell.send(row.resolveTyped(bytes).bytes) },
                     onResize: { columns, rows in shell.resize(columns: columns, rows: rows) },
-                    register: { feed = $0 })
+                    bridge: bridge)
                     .background(Theme.base)
                 KeyRowView(row: $row) { bytes in shell.send(bytes) }
             }
@@ -34,7 +67,7 @@ struct ShellView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             shell.prepare(comment: ShellIdentityBootstrap.comment)
-            shell.onOutput = { bytes in feed?(bytes) }
+            shell.onOutput = { [bridge] bytes in bridge.feed(bytes) }
             shell.connect(server: server, session: session, columns: 80, rows: 24)
         }
         .onDisappear { shell.leave() }

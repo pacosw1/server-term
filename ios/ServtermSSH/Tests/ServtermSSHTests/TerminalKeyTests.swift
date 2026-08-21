@@ -88,4 +88,36 @@ struct TerminalKeyTests {
         #expect(row.isControlHeld == false)
         #expect(row.isAltHeld == false)
     }
+
+    @Test("a held control applies to a key from the system keyboard too")
+    func stickyControlOnTypedText() {
+        var row = KeyRowState()
+        row.toggleControl()
+        // The system keyboard hands over the raw byte of the letter.
+        #expect(row.resolveTyped(Array("c".utf8)).bytes == [0x03])
+        #expect(row.isControlHeld == false)
+    }
+
+    @Test("a held alt applies to a typed key too")
+    func stickyAltOnTypedText() {
+        var row = KeyRowState()
+        row.toggleAlt()
+        #expect(row.resolveTyped(Array("b".utf8)).bytes == [0x1b, 0x62])
+    }
+
+    @Test("typed text passes through untouched when no modifier is held")
+    func plainTypedText() {
+        var row = KeyRowState()
+        #expect(row.resolveTyped(Array("ls".utf8)).bytes == Array("ls".utf8))
+        #expect(row.resolveTyped([0x0d]).bytes == [0x0d])
+    }
+
+    @Test("a modifier does not fold a whole pasted line into one code")
+    func modifierWithPaste() {
+        var row = KeyRowState()
+        row.toggleControl()
+        let pasted = Array("echo hello".utf8)
+        #expect(row.resolveTyped(pasted).bytes == pasted)
+        #expect(row.isControlHeld == false, "the modifier clears, so the next key is plain")
+    }
 }

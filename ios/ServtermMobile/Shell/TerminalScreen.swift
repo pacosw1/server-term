@@ -7,9 +7,10 @@ import UIKit
 struct TerminalScreen: UIViewRepresentable {
     let onInput: ([UInt8]) -> Void
     let onResize: (Int, Int) -> Void
-    /// register hands the feed function back, so the model can push the
-    /// bytes that arrive.
-    let register: (@escaping ([UInt8]) -> Void) -> Void
+    /// bridge is the object that carries the bytes of the host into this
+    /// view. The view registers itself with it, so nothing depends on a
+    /// closure handed back during a view update.
+    let bridge: TerminalBridge
 
     func makeUIView(context: Context) -> TerminalView {
         let view = TerminalView(frame: .zero)
@@ -19,10 +20,12 @@ struct TerminalScreen: UIViewRepresentable {
         view.nativeForegroundColor = UIColor(Theme.text)
         view.font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
         view.isOpaque = true
-        register { [weak view] bytes in
-            guard let view else { return }
-            view.feed(byteArray: ArraySlice(bytes))
-        }
+        view.accessibilityIdentifier = "terminal-view"
+        bridge.attach(view)
+        // The keyboard must come up by itself. A person who opens a shell
+        // wants to type, and hunting for the tap that raises the keyboard
+        // reads as a dead terminal.
+        DispatchQueue.main.async { _ = view.becomeFirstResponder() }
         return view
     }
 

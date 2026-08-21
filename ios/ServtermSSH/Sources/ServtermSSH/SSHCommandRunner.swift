@@ -8,6 +8,12 @@ public struct CommandResult: Sendable, Equatable {
     public let stdout: String
     public let stderr: String
     public let exitStatus: Int32
+
+    public init(stdout: String, stderr: String, exitStatus: Int32) {
+        self.stdout = stdout
+        self.stderr = stderr
+        self.exitStatus = exitStatus
+    }
 }
 
 /// SSHRunning hides the command channel, so a screen can be driven by a

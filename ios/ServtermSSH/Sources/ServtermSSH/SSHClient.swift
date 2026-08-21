@@ -185,10 +185,23 @@ public actor NIOSSHClient: SSHConnecting {
     }
 
     public func send(_ bytes: [UInt8]) async {
-        guard let child, !bytes.isEmpty else { return }
+        guard !bytes.isEmpty else { return }
+        guard let child else {
+            // A key press before the channel exists is not silence: the
+            // screen must say the session is not carrying input.
+            continuation?.yield(.state(.disconnected(reason: "the session is not open")))
+            return
+        }
         var buffer = child.allocator.buffer(capacity: bytes.count)
         buffer.writeBytes(bytes)
-        try? await child.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(buffer))).get()
+        do {
+            try await child.writeAndFlush(SSHChannelData(type: .channel, data: .byteBuffer(buffer))).get()
+        } catch {
+            // A write that fails silently looks exactly like a dead
+            // keyboard, which is what the user met.
+            continuation?.yield(
+                .state(.disconnected(reason: "the host stopped taking input: " + Self.reason(error))))
+        }
     }
 
     public func resize(columns: Int, rows: Int) async {

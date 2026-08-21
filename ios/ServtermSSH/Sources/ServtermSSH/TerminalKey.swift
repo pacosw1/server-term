@@ -90,6 +90,21 @@ public struct KeyRowState: Sendable, Equatable {
     public mutating func toggleControl() { isControlHeld.toggle() }
     public mutating func toggleAlt() { isAltHeld.toggle() }
 
+    /// resolveTyped applies the sticky keys to the bytes that the system
+    /// keyboard produced. A terminal keyboard behaves this way: control
+    /// stays held for the next key, whichever keyboard sends it.
+    public mutating func resolveTyped(_ bytes: [UInt8]) -> ResolvedKey {
+        guard isControlHeld || isAltHeld else { return ResolvedKey(bytes: bytes) }
+        guard let text = String(bytes: bytes, encoding: .utf8), text.count == 1 else {
+            // A modifier applies to one key press. Anything longer, for
+            // example a paste, passes through and clears the modifiers.
+            isControlHeld = false
+            isAltHeld = false
+            return ResolvedKey(bytes: bytes)
+        }
+        return resolve(.text(text))
+    }
+
     /// resolve applies the sticky keys to one press, and then clears them.
     public mutating func resolve(_ key: TerminalKey) -> ResolvedKey {
         defer {
