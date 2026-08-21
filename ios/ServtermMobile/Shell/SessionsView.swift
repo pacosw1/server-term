@@ -7,9 +7,7 @@ import ServtermSSH
 /// killing asks first.
 struct SessionsView: View {
     @Environment(AppModel.self) private var model
-    @State private var sessions: SessionsModel = UITestSupport.usesFakeShell
-        ? UITestSupport.makeSessionsModel()
-        : SessionsModel()
+    @State private var sessions: SessionsModel = ShellFactory.makeSessions()
     @State private var showsNew = false
     @State private var killTarget: TmuxSession?
     let server: ServerEntry

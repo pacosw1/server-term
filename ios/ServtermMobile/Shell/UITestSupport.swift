@@ -1,3 +1,4 @@
+#if UITEST_SUPPORT
 import Foundation
 import Observation
 import ServtermSSH
@@ -7,8 +8,10 @@ import ServtermSSH
 /// last mile that no unit test can reach: a key press in the real
 /// TerminalView arriving as bytes at the transport.
 ///
-/// It is off unless that argument is present, so a normal run never sees
-/// any of it.
+/// The whole file is behind UITEST_SUPPORT, which only the debug build
+/// defines, so a release build carries none of it. The launch argument is
+/// a second gate on top of that: a debug build that nobody asked still
+/// uses the real connection.
 enum UITestSupport {
     static var usesFakeShell: Bool {
         ProcessInfo.processInfo.arguments.contains("-uiTestFakeShell")
@@ -98,3 +101,5 @@ struct FakeShellRunner: SSHRunning {
         return CommandResult(stdout: "", stderr: "", exitStatus: 0)
     }
 }
+
+#endif

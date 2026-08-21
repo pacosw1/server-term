@@ -7,9 +7,7 @@ import ServtermSSH
 /// that writes to a host, and it writes only what the user types.
 struct ShellView: View {
     @Environment(AppModel.self) private var model
-    @State private var shell: ShellModel = UITestSupport.usesFakeShell
-        ? UITestSupport.makeShellModel(session: "")
-        : ShellModel()
+    @State private var shell: ShellModel = ShellFactory.makeShell()
     @State private var row = KeyRowState()
     @State private var bridge = TerminalBridge()
     @State private var screenMirror = ""
@@ -26,7 +24,8 @@ struct ShellView: View {
                         .padding()
                 }
             } else {
-                if UITestSupport.usesFakeShell {
+                #if UITEST_SUPPORT
+                if ShellFactory.usesFakeShell {
                     // The test reads what the transport received from here.
                     Text(FakeShellLog.shared.received)
                         .accessibilityIdentifier("fake-input-log")
@@ -50,6 +49,7 @@ struct ShellView: View {
                         .padding(.horizontal, 8)
                         .onReceive(mirrorTimer) { _ in screenMirror = bridge.screenText() }
                 }
+                #endif
                 TerminalScreen(
                     // A key from the system keyboard goes through the same
                     // sticky control and alt state as a key from the row.

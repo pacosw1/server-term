@@ -47,6 +47,14 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: YES
+      # The fake shell transport exists only in a debug build. A release
+      # build cannot contain a component whose whole purpose is to stand in
+      # for the real connection.
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG UITEST_SUPPORT
+        Release:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: ""
   ServtermMobileTests:
     type: bundle.unit-test
     platform: iOS
