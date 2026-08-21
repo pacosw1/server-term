@@ -114,13 +114,25 @@ awk '/^cpu[0-9]+ /{$1=""; sub(/^ /,""); print "core\t" $0}' /proc/stat
 awk '/^processor/{n++} END{print "cores\t" n+0}' /proc/cpuinfo
 awk '{print "load\t" $1, $2, $3}' /proc/loadavg
 awk '/^MemTotal:/{print "mem_total\t" $2} /^MemAvailable:/{print "mem_available\t" $2} /^SwapTotal:/{print "swap_total\t" $2} /^SwapFree:/{print "swap_free\t" $2}' /proc/meminfo
-awk -F'[: ]+' 'NR>2 && $2!="lo" {rx+=$3; re+=$5; rd+=$6; tx+=$11; te+=$13; td+=$14} END{print "net\t" rx+0, tx+0; print "net_errors\t" re+0,te+0,rd+0,td+0}' /proc/net/dev
+awk 'NR>2 {line=$0; sub(/^[ \t]+/,"",line); split(line,a,":"); name=a[1]; rest=a[2]; sub(/^[ \t]+/,"",rest); split(rest,v,/[ \t]+/); if (name!="lo") {rx+=v[1]; re+=v[3]; rd+=v[4]; tx+=v[9]; te+=v[11]; td+=v[12]}} END{print "net\t" rx+0, tx+0; print "net_errors\t" re+0,te+0,rd+0,td+0}' /proc/net/dev
 iface=$(awk '$2=="00000000" {print $1; exit}' /proc/net/route)
 [ -n "$iface" ] || iface=unknown
 kind=ethernet; [ -d "/sys/class/net/$iface/wireless" ] && kind=wifi
 speed=0; [ -r "/sys/class/net/$iface/speed" ] && speed=$(cat "/sys/class/net/$iface/speed" 2>/dev/null || echo 0)
 case "$speed" in ''|*[!0-9-]*) speed=0;; esac
 printf 'net_info\t%s %s %s\n' "$iface" "$kind" "$speed"
+awk 'NR>2 {line=$0; sub(/^[ \t]+/,"",line); split(line,a,":"); name=a[1]; rest=a[2]; sub(/^[ \t]+/,"",rest); split(rest,v,/[ \t]+/); if (name!="lo" && v[1]+v[9] > 0) printf "netif\t%s %s %s %s %s %s %s\n", name, v[1], v[9], v[3], v[11], v[4], v[12]}' /proc/net/dev
+if [ -r /proc/diskstats ]; then awk '$3 ~ /^(sd[a-z]+|nvme[0-9]+n[0-9]+|vd[a-z]+|xvd[a-z]+|md[0-9]+|dm-[0-9]+)$/ {printf "diskio\t%s %.0f %.0f\n", $3, $6*512, $10*512}' /proc/diskstats; fi
+for f in /sys/class/hwmon/*/temp*_input; do
+  [ -r "$f" ] || continue
+  value=$(cat "$f" 2>/dev/null) || continue
+  case "$value" in ''|*[!0-9-]*) continue;; esac
+  dir=$(dirname "$f"); base=$(basename "$f" _input)
+  label=""; if [ -r "$dir/${base}_label" ]; then label=$(cat "$dir/${base}_label" 2>/dev/null || echo ""); fi
+  chip=""; if [ -r "$dir/name" ]; then chip=$(cat "$dir/name" 2>/dev/null || echo ""); fi
+  [ -n "$label" ] || label="$base"
+  printf 'temp\t%s\t%s\n' "${chip:+$chip }$label" "$(awk -v v="$value" 'BEGIN{printf "%.1f", v/1000}')"
+done
 for p in cpu memory io; do f="/proc/pressure/$p"; [ -r "$f" ] && awk -v p="$p" '/^some /{for(i=1;i<=NF;i++)if($i~/^avg10=/){split($i,a,"="); print "pressure_" p "\t" a[2]}}' "$f"; done
 energy_uj=$(for f in /sys/class/powercap/intel-rapl*/energy_uj /sys/class/powercap/intel-rapl:*/*/energy_uj; do [ -r "$f" ] && cat "$f"; done | awk '{sum+=$1} END{if(NR) printf "%.0f",sum}')
 [ -n "$energy_uj" ] && printf 'energy_uj\t%s\n' "$energy_uj"
@@ -155,7 +167,7 @@ END{
 }'
 runner_pids=$(ps -eo pid=,ppid=,comm= 2>/dev/null | awk '{ids[NR]=$1;parent[$1]=$2;name[$1]=$3} END{for(i=1;i<=NR;i++){id=ids[i];p=id;for(d=0;d<64&&p>1;d++){if(name[p]=="Runner.Worker"||name[p]=="Runner.Listener"){print id;break};p=parent[p]}}}')
 ticks=0; for pid in $runner_pids; do [ -r "/proc/$pid/stat" ] || continue; values=$(cat "/proc/$pid/stat"); set -- $values; ticks=$((ticks+${14}+${15})); done; printf 'runner_ticks\t%s\n' "$ticks"
-[ -r /run/servterm/runner-jobs.jsonl ] && while IFS= read -r job; do printf 'runner_job\t%s\n' "$job"; done < /run/servterm/runner-jobs.jsonl
+if [ -r /run/servterm/runner-jobs.jsonl ]; then while IFS= read -r job; do printf 'runner_job\t%s\n' "$job"; done < /run/servterm/runner-jobs.jsonl; fi
 `
 
 const darwinScript = `
@@ -192,6 +204,7 @@ networksetup -listallhardwareports 2>/dev/null | awk -v i="$iface" '/Hardware Po
 speed=$(ifconfig "$iface" 2>/dev/null | sed -n 's/.*media:.*(\([0-9][0-9]*\)base.*/\1/p' | head -1)
 [ -n "$speed" ] || speed=0
 printf 'net_info\t%s %s %s\n' "$iface" "$kind" "$speed"
+netstat -ibn | awk 'NR>1 && $3 ~ /^<Link#/ {name=$1; sub(/\*$/,"",name); if (name!="lo0" && !seen[name]++ && $(NF-4)+$(NF-1) > 0) printf "netif\t%s %s %s %s %s 0 0\n", name, $(NF-4), $(NF-1), $(NF-5), $(NF-2)}'
 pmset -g batt 2>/dev/null | awk '/InternalBattery|%/ {if (match($0,/[0-9]+%/)) {v=substr($0,RSTART,RLENGTH);gsub(/%/,"",v);print "battery_percent\t" v; if ($0 ~ /charging|charged/) print "battery_charging\ttrue"; exit}}'
 smart_battery=$(ioreg -rn AppleSmartBattery -l 2>/dev/null || true)
 printf '%s\n' "$smart_battery" | awk '

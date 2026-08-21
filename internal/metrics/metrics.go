@@ -15,6 +15,32 @@ type Accelerator struct {
 	Utilization      float64
 	UtilizationKnown bool
 }
+
+// Temperature is one thermal sensor reading. Label names the sensor as the
+// host names it, because only the host knows what the sensor measures.
+type Temperature struct {
+	Label   string
+	Celsius float64
+}
+
+// DiskIO is the byte counter of one block device. ReadRate and WriteRate
+// are bytes per second, derived from two samples; they stay at zero until a
+// second sample exists, so a first reading never shows invented traffic.
+type DiskIO struct {
+	Device                string
+	ReadBytes, WriteBytes uint64
+	ReadRate, WriteRate   float64
+}
+
+// NetInterface is one network interface. The counters are the host's own
+// totals; the rates are derived the same way as DiskIO.
+type NetInterface struct {
+	Name                                 string
+	Rx, Tx                               uint64
+	RxRate, TxRate                       float64
+	RxErrors, TxErrors, RxDrops, TxDrops uint64
+}
+
 type Process struct {
 	PID     int
 	User    string
@@ -72,6 +98,9 @@ type Sample struct {
 	Devices                                 []BlockDevice
 	Accelerators                            []Accelerator
 	Processes                               []Process
+	Temperatures                            []Temperature
+	DiskIO                                  []DiskIO
+	Interfaces                              []NetInterface
 	Runners                                 RunnerStats
 	RunnerJobs                              []RunnerJob
 }
@@ -127,6 +156,44 @@ func Derive(previous *Sample, current *Sample) {
 	}
 	if current.NetTx >= previous.NetTx {
 		current.NetTxRate = float64(current.NetTx-previous.NetTx) / dt
+	}
+	// A device is matched by its own name, because the host can add or drop
+	// a device between two samples. A device with no earlier reading, and a
+	// counter that went backwards after a restart, both keep the rate at
+	// zero rather than showing invented traffic.
+	oldDiskIO := map[string]DiskIO{}
+	for _, d := range previous.DiskIO {
+		oldDiskIO[d.Device] = d
+	}
+	for i := range current.DiskIO {
+		d := &current.DiskIO[i]
+		old, ok := oldDiskIO[d.Device]
+		if !ok {
+			continue
+		}
+		if d.ReadBytes >= old.ReadBytes {
+			d.ReadRate = float64(d.ReadBytes-old.ReadBytes) / dt
+		}
+		if d.WriteBytes >= old.WriteBytes {
+			d.WriteRate = float64(d.WriteBytes-old.WriteBytes) / dt
+		}
+	}
+	oldInterfaces := map[string]NetInterface{}
+	for _, n := range previous.Interfaces {
+		oldInterfaces[n.Name] = n
+	}
+	for i := range current.Interfaces {
+		n := &current.Interfaces[i]
+		old, ok := oldInterfaces[n.Name]
+		if !ok {
+			continue
+		}
+		if n.Rx >= old.Rx {
+			n.RxRate = float64(n.Rx-old.Rx) / dt
+		}
+		if n.Tx >= old.Tx {
+			n.TxRate = float64(n.Tx-old.Tx) / dt
+		}
 	}
 	if current.EnergyMicrojoules >= previous.EnergyMicrojoules {
 		delta := current.EnergyMicrojoules - previous.EnergyMicrojoules

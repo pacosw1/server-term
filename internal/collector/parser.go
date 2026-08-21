@@ -125,6 +125,22 @@ func Parse(raw string) (metrics.Sample, error) {
 			if len(p) >= 6 {
 				s.Processes = append(s.Processes, metrics.Process{PID: int(u64(p[0])), User: p[1], Command: p[2], CPU: f64(p[3]), Memory: f64(p[4]), RSS: u64(p[5]) * 1024})
 			}
+		case "temp":
+			p := strings.Split(val, "\t")
+			if len(p) >= 2 {
+				s.Temperatures = append(s.Temperatures, metrics.Temperature{Label: p[0], Celsius: f64(p[1])})
+			}
+		case "diskio":
+			p := strings.Fields(val)
+			if len(p) >= 3 {
+				s.DiskIO = append(s.DiskIO, metrics.DiskIO{Device: p[0], ReadBytes: u64(p[1]), WriteBytes: u64(p[2])})
+			}
+		case "netif":
+			p := strings.Fields(val)
+			if len(p) >= 7 {
+				s.Interfaces = append(s.Interfaces, metrics.NetInterface{Name: p[0], Rx: u64(p[1]), Tx: u64(p[2]),
+					RxErrors: u64(p[3]), TxErrors: u64(p[4]), RxDrops: u64(p[5]), TxDrops: u64(p[6])})
+			}
 		case "runners":
 			p := strings.Fields(val)
 			if len(p) >= 6 {
