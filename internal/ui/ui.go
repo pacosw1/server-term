@@ -77,6 +77,14 @@ type sshStartMsg struct {
 	Pane *sshPane
 	Err  error
 }
+type devtoolStatusMsg struct {
+	Status map[string]bool
+	Err    error
+}
+type devtoolActionMsg struct {
+	Tool, Action, Output string
+	Err                  error
+}
 type Model struct {
 	cfg            config.Config
 	collector      collector.Collector
@@ -95,6 +103,11 @@ type Model struct {
 	desktopStreams map[int]*desktopclient.Stream
 	ssh            *sshPane
 	sshText        string
+	devtoolCursor  int
+	devtoolStatus  map[string]bool
+	devtoolConfirm string
+	devtoolMessage string
+	devtoolBusy    bool
 	width, height  int
 	collecting     bool
 	pending        int
@@ -108,7 +121,7 @@ func New(cfg config.Config) Model {
 			n++
 		}
 	}
-	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, collecting: n > 0, pending: n}
+	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, collecting: n > 0, pending: n}
 }
 func (m Model) Init() tea.Cmd { return tea.Batch(append(m.collectAll(), m.nextFrame())...) }
 func (m Model) nextFrame() tea.Cmd {
@@ -186,6 +199,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.detailTab = (m.detailTab + 1) % maxTabs
 				m.detailScroll = 0
+				if m.detailTab == 9 {
+					return m, m.loadDevtoolsStatus(m.cursor)
+				}
 				return m, nil
 			case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 				n := int(msg.Runes[0] - '1')
@@ -205,6 +221,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			_ = m.ssh.write(keyBytes(msg))
 			return m, nil
+		}
+		if m.detail && m.detailTab == 9 {
+			switch msg.String() {
+			case "up", "k":
+				if m.devtoolCursor > 0 {
+					m.devtoolCursor--
+				}
+				return m, nil
+			case "down", "j":
+				if m.devtoolCursor < len(devtools.Catalog)-1 {
+					m.devtoolCursor++
+				}
+				return m, nil
+			case "esc":
+				m.devtoolConfirm = ""
+				return m, nil
+			case "enter", "i":
+				if m.devtoolConfirm == "install" {
+					m.devtoolConfirm = ""
+					return m, m.runDevtoolAction(m.cursor, m.devtoolCursor, false)
+				}
+				m.devtoolConfirm = "install"
+				return m, nil
+			case "u":
+				if m.devtoolConfirm == "uninstall" {
+					m.devtoolConfirm = ""
+					return m, m.runDevtoolAction(m.cursor, m.devtoolCursor, true)
+				}
+				m.devtoolConfirm = "uninstall"
+				return m, nil
+			}
 		}
 		if m.detail && m.detailTab == 7 && isRemoteDesktopKey(msg.String()) {
 			return m, m.sendDesktopKey(m.cursor, msg.String())
@@ -270,6 +317,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.detail {
 				m.detailTab = 9
 				m.detailScroll = 0
+				return m, m.loadDevtoolsStatus(m.cursor)
 			}
 		case "c":
 			if m.detail && m.detailTab == 7 {
@@ -333,6 +381,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ssh = msg.Pane
 		m.sshText = ""
 		return m, m.ssh.read()
+	case devtoolStatusMsg:
+		m.devtoolBusy = false
+		if msg.Err != nil {
+			m.devtoolMessage = "status error: " + msg.Err.Error()
+		} else {
+			m.devtoolStatus = msg.Status
+			m.devtoolMessage = ""
+		}
+		return m, nil
+	case devtoolActionMsg:
+		m.devtoolBusy = false
+		if msg.Err != nil {
+			m.devtoolMessage = msg.Action + " failed: " + msg.Err.Error()
+		} else {
+			m.devtoolMessage = msg.Action + " complete: " + strings.TrimSpace(msg.Output)
+		}
+		return m, m.loadDevtoolsStatus(m.cursor)
 	case resultMsg:
 		prev := m.samples[msg.Index]
 		metrics.Derive(&prev, &msg.Sample)
@@ -688,7 +753,7 @@ func (m Model) detailView() string {
 			body += "  Press Enter to connect.\n  x disconnects and keeps the tab open.\n"
 		}
 	case 9:
-		body = devtoolsView()
+		body = m.devtoolsView()
 	}
 	return info + common + tabs + body
 }
@@ -724,13 +789,28 @@ func desktopView(desktop *config.Desktop, frame, errText string, width int) stri
 	}
 	return fmt.Sprintf("  DESKTOP\n\n  %-14s %s\n  %-14s %s\n  %-14s %d\n  %-14s %s\n\n  %s\n\n", "NAME", desktop.Name, "PLATFORM", desktop.Platform, "VNC PORT", port, "AGENT", desktop.AgentURL, dimStyle.Render("c connect  •  view-only by default  •  agent input requires confirmation"))
 }
-func devtoolsView() string {
+func (m Model) devtoolsView() string {
 	var b strings.Builder
-	b.WriteString("  DEV TOOLS\n\n  TOOL           DESCRIPTION\n")
-	for _, t := range devtools.Catalog {
-		fmt.Fprintf(&b, "  %-14s %s\n", t.ID, t.Description)
+	b.WriteString("  DEV TOOLS\n\n  TOOL           STATUS       DESCRIPTION\n")
+	for i, t := range devtools.Catalog {
+		state := "missing"
+		if m.devtoolStatus[t.Command] {
+			state = "installed"
+		}
+		mark := "  "
+		if i == m.devtoolCursor {
+			mark = "› "
+		}
+		fmt.Fprintf(&b, "%s%-14s %-11s %s\n", mark, t.ID, state, t.Description)
 	}
-	b.WriteString("\n  Use `servterm devtools status SERVER` to inspect.\n  Install/uninstall actions require the explicit CLI --yes confirmation.\n\n")
+	if m.devtoolConfirm != "" {
+		fmt.Fprintf(&b, "\n  Confirm %s: press Enter again; Esc cancels.\n", m.devtoolConfirm)
+	} else {
+		b.WriteString("\n  ↑/↓ select  Enter/i install  u uninstall  Esc cancel\n")
+	}
+	if m.devtoolMessage != "" {
+		b.WriteString("  " + m.devtoolMessage + "\n")
+	}
 	return b.String()
 }
 func (m Model) startSSH(index int) tea.Cmd {
@@ -774,6 +854,29 @@ func (m Model) loadDesktop(index int) tea.Cmd {
 			return desktopShotMsg{Index: index, Frame: inline}
 		}
 		return desktopShotMsg{Index: index, Frame: ansiFrame(img, cols)}
+	}
+}
+func (m Model) loadDevtoolsStatus(index int) tea.Cmd {
+	return func() tea.Msg {
+		if index < 0 || index >= len(m.cfg.Servers) {
+			return devtoolStatusMsg{Err: fmt.Errorf("no server")}
+		}
+		status, err := devtools.Status(context.Background(), m.cfg.Servers[index])
+		return devtoolStatusMsg{Status: status, Err: err}
+	}
+}
+func (m Model) runDevtoolAction(index, cursor int, remove bool) tea.Cmd {
+	return func() tea.Msg {
+		if index < 0 || index >= len(m.cfg.Servers) || cursor < 0 || cursor >= len(devtools.Catalog) {
+			return devtoolActionMsg{Err: fmt.Errorf("invalid tool")}
+		}
+		t := devtools.Catalog[cursor]
+		out, err := devtools.Install(context.Background(), m.cfg.Servers[index], t.ID, remove)
+		action := "install"
+		if remove {
+			action = "uninstall"
+		}
+		return devtoolActionMsg{Tool: t.ID, Action: action, Output: out, Err: err}
 	}
 }
 func (m Model) startDesktop(index int) tea.Cmd {
