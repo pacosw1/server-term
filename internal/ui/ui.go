@@ -20,6 +20,7 @@ import (
 	"github.com/franciscosainzwilliams/server-term/internal/collector"
 	"github.com/franciscosainzwilliams/server-term/internal/config"
 	"github.com/franciscosainzwilliams/server-term/internal/desktopclient"
+	"github.com/franciscosainzwilliams/server-term/internal/devtools"
 	"github.com/franciscosainzwilliams/server-term/internal/metrics"
 )
 
@@ -179,16 +180,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.sshText = ""
 				return m, nil
 			case "tab":
-				maxTabs := 8
+				maxTabs := 9
 				if m.desktopForServer(m.cursor) != nil {
-					maxTabs = 9
+					maxTabs = 10
 				}
 				m.detailTab = (m.detailTab + 1) % maxTabs
 				m.detailScroll = 0
 				return m, nil
 			case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 				n := int(msg.Runes[0] - '1')
-				if n < 8 || (n == 8) {
+				if n < 9 || (n == 9) {
 					if n == 7 && m.desktopForServer(m.cursor) == nil {
 						return m, nil
 					}
@@ -233,9 +234,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.detail = true
 		case "tab":
 			if m.detail {
-				maxTabs := 8
+				maxTabs := 9
 				if m.desktopForServer(m.cursor) != nil {
-					maxTabs = 9
+					maxTabs = 10
 				}
 				m.detailTab = (m.detailTab + 1) % maxTabs
 				m.detailScroll = 0
@@ -263,6 +264,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "9":
 			if m.detail {
 				m.detailTab = 8
+				m.detailScroll = 0
+			}
+		case "d":
+			if m.detail {
+				m.detailTab = 9
 				m.detailScroll = 0
 			}
 		case "c":
@@ -651,6 +657,7 @@ func (m Model) detailView() string {
 		labels = append(labels, "8 DESKTOP")
 	}
 	labels = append(labels, "9 SSH")
+	labels = append(labels, "10 DEVTOOLS")
 	tabs := "  "
 	for i, label := range labels {
 		tabs += tabLabel(label, m.detailTab == i) + "  "
@@ -680,6 +687,8 @@ func (m Model) detailView() string {
 		if m.ssh == nil && m.sshText == "" {
 			body += "  Press Enter to connect.\n  x disconnects and keeps the tab open.\n"
 		}
+	case 9:
+		body = devtoolsView()
 	}
 	return info + common + tabs + body
 }
@@ -714,6 +723,15 @@ func desktopView(desktop *config.Desktop, frame, errText string, width int) stri
 		port = 5900
 	}
 	return fmt.Sprintf("  DESKTOP\n\n  %-14s %s\n  %-14s %s\n  %-14s %d\n  %-14s %s\n\n  %s\n\n", "NAME", desktop.Name, "PLATFORM", desktop.Platform, "VNC PORT", port, "AGENT", desktop.AgentURL, dimStyle.Render("c connect  •  view-only by default  •  agent input requires confirmation"))
+}
+func devtoolsView() string {
+	var b strings.Builder
+	b.WriteString("  DEV TOOLS\n\n  TOOL           DESCRIPTION\n")
+	for _, t := range devtools.Catalog {
+		fmt.Fprintf(&b, "  %-14s %s\n", t.ID, t.Description)
+	}
+	b.WriteString("\n  Use `servterm devtools status SERVER` to inspect.\n  Install/uninstall actions require the explicit CLI --yes confirmation.\n\n")
+	return b.String()
 }
 func (m Model) startSSH(index int) tea.Cmd {
 	return func() tea.Msg {

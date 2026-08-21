@@ -17,6 +17,7 @@ import (
 	"github.com/franciscosainzwilliams/server-term/internal/agentclient"
 	"github.com/franciscosainzwilliams/server-term/internal/config"
 	"github.com/franciscosainzwilliams/server-term/internal/desktopclient"
+	"github.com/franciscosainzwilliams/server-term/internal/devtools"
 	"github.com/franciscosainzwilliams/server-term/internal/metrics"
 	"github.com/franciscosainzwilliams/server-term/internal/widget"
 )
@@ -61,6 +62,9 @@ func runCLI(ctx context.Context, cfg config.Config, args []string) error {
 	}
 	if command == "widget" {
 		return cliWidgets(ctx, cfg, *host, *jsonOut)
+	}
+	if command == "devtools" {
+		return cliDevTools(ctx, cfg, fs.Args(), *jsonOut)
 	}
 	if command == "desktop" {
 		return cliDesktops(ctx, cfg, fs.Args(), *jsonOut)
@@ -126,6 +130,89 @@ func cliSSH(cfg config.Config, args []string) error {
 		return cmd.Run()
 	}
 	return fmt.Errorf("unknown server %q", wanted)
+}
+
+func cliDevTools(ctx context.Context, cfg config.Config, args []string, jsonOut bool) error {
+	if containsArg(args, "--json") {
+		jsonOut = true
+	}
+	if len(args) == 0 {
+		return errors.New("devtools requires list, status, install, or uninstall")
+	}
+	action := args[0]
+	if action == "list" {
+		if jsonOut {
+			return printJSON(map[string]any{"schema_version": 1, "tools": devtools.Catalog})
+		}
+		for _, t := range devtools.Catalog {
+			fmt.Printf("%-14s %s\n", t.ID, t.Description)
+		}
+		return nil
+	}
+	if len(args) < 2 {
+		return errors.New("devtools action requires a server name")
+	}
+	server, err := findServerConfig(cfg, args[1])
+	if err != nil {
+		return err
+	}
+	if action == "status" {
+		statuses, err := devtools.Status(ctx, server)
+		if err != nil {
+			return err
+		}
+		if jsonOut {
+			return printJSON(map[string]any{"schema_version": 1, "server": server.Name, "tools": statuses})
+		}
+		for _, t := range devtools.Catalog {
+			state := "missing"
+			if statuses[t.Command] {
+				state = "installed"
+			}
+			fmt.Printf("%-14s %s\n", t.ID, state)
+		}
+		return nil
+	}
+	if action != "install" && action != "uninstall" && action != "remove" {
+		return fmt.Errorf("unknown devtools action %q", action)
+	}
+	if len(args) < 3 {
+		return errors.New("devtools install SERVER TOOL --yes")
+	}
+	if !containsArg(args, "--yes") {
+		return errors.New("refusing package mutation without --yes")
+	}
+	out, err := devtools.Install(ctx, server, args[2], action != "install")
+	if jsonOut {
+		return printJSON(map[string]any{"schema_version": 1, "server": server.Name, "tool": args[2], "action": action, "output": out, "error": errorText(err)})
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Print(out)
+	return nil
+}
+func findServerConfig(cfg config.Config, name string) (config.Server, error) {
+	for _, s := range cfg.Servers {
+		if s.Name == name {
+			return s, nil
+		}
+	}
+	return config.Server{}, fmt.Errorf("unknown server %q", name)
+}
+func containsArg(args []string, want string) bool {
+	for _, a := range args {
+		if a == want {
+			return true
+		}
+	}
+	return false
+}
+func errorText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func collectLatest(ctx context.Context, cfg config.Config, wanted string) []cliServer {
