@@ -796,7 +796,10 @@ func desktopView(desktop *config.Desktop, frame, errText string, width int) stri
 }
 func (m Model) devtoolsView() string {
 	var b strings.Builder
-	b.WriteString("  DEV TOOLS\n\n  TOOL           STATUS       DESCRIPTION\n")
+	contentWidth := max(60, m.width-4)
+	descWidth := max(12, contentWidth-2-14-11-24-3)
+	b.WriteString("  DEV TOOLS\n\n")
+	b.WriteString(dimStyle.Render(truncate(fmt.Sprintf("  %-14s %-11s %-24s %s", "TOOL", "STATUS", "VERSION", "DESCRIPTION"), contentWidth)) + "\n")
 	for i, t := range devtools.Catalog {
 		state := "missing"
 		stateStyle := errStyle
@@ -808,14 +811,15 @@ func (m Model) devtoolsView() string {
 		if version == "" {
 			version = "—"
 		}
-		lineStyle := lipgloss.NewStyle()
+		line := fmt.Sprintf("  %-14s %-11s %-24s %s", t.ID, state, truncate(version, 24), truncate(t.Description, descWidth))
 		if i == m.devtoolCursor {
-			lineStyle = lipgloss.NewStyle().Background(panel).Bold(true).Foreground(cyan)
+			b.WriteString(lipgloss.NewStyle().Background(panel).Bold(true).Foreground(cyan).Render(pad(line, contentWidth)) + "\n")
+		} else {
+			b.WriteString(fmt.Sprintf("  %-14s ", t.ID))
+			b.WriteString(stateStyle.Render(fmt.Sprintf("%-11s", state)))
+			b.WriteString(dimStyle.Render(fmt.Sprintf(" %-24s", truncate(version, 24))))
+			b.WriteString(" " + truncate(t.Description, descWidth) + "\n")
 		}
-		b.WriteString(lineStyle.Render(fmt.Sprintf("  %-14s ", t.ID)))
-		b.WriteString(stateStyle.Render(fmt.Sprintf("%-11s", state)))
-		b.WriteString(dimStyle.Render(fmt.Sprintf(" %-18s", version)))
-		b.WriteString(lineStyle.Render("  " + t.Description + "\n"))
 	}
 	if m.devtoolBusy {
 		b.WriteString(warnStyle.Render("\n  ◌ working…\n"))
