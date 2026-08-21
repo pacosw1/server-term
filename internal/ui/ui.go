@@ -189,7 +189,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if m.ssh != nil {
 			switch msg.String() {
-			case "x":
+			case "ctrl+x", "cmd+x", "super+x":
 				m.ssh.close()
 				m.ssh = nil
 				m.sshText = ""
@@ -622,7 +622,7 @@ func (m Model) View() string {
 	if m.detail {
 		help = "  tab / 1..9 widgets  s SSH  c connect desktop  [ / ] history  j/k scroll  esc overview  q quit   LIVE -1.0s • 10fps"
 		if m.ssh != nil {
-			help = "  SSH session active  esc close session  ctrl-c remote"
+			help = "  SSH session active  cmd+x close session  ctrl-c remote"
 		}
 	}
 	header := m.header()
