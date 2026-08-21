@@ -10,6 +10,20 @@ public struct OrchestratorDaemon: Decodable, Sendable, Equatable {
     public var cpuPercent: Double = 0
     public var rssBytes: Int64 = 0
     public var uptimeSeconds: Int64 = 0
+
+    enum CodingKeys: String, CodingKey {
+        case pid, cpuPercent, rssBytes, uptimeSeconds
+    }
+
+    public init() {}
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        pid = c.or(.pid, 0)
+        cpuPercent = c.or(.cpuPercent, 0)
+        rssBytes = c.or(.rssBytes, 0)
+        uptimeSeconds = c.or(.uptimeSeconds, 0)
+    }
 }
 
 public struct OrchestratorBudget: Decodable, Sendable, Equatable {
@@ -21,6 +35,25 @@ public struct OrchestratorBudget: Decodable, Sendable, Equatable {
     public var weekLimitUsd: Double = 0
     public var dayRemainingUsd: Double = 0
     public var paceNote: String = ""
+
+    enum CodingKeys: String, CodingKey {
+        case hourUsd, dayUsd, weekUsd, hourLimitUsd, dayLimitUsd, weekLimitUsd
+        case dayRemainingUsd, paceNote
+    }
+
+    public init() {}
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        hourUsd = c.or(.hourUsd, 0)
+        dayUsd = c.or(.dayUsd, 0)
+        weekUsd = c.or(.weekUsd, 0)
+        hourLimitUsd = c.or(.hourLimitUsd, 0)
+        dayLimitUsd = c.or(.dayLimitUsd, 0)
+        weekLimitUsd = c.or(.weekLimitUsd, 0)
+        dayRemainingUsd = c.or(.dayRemainingUsd, 0)
+        paceNote = c.or(.paceNote, "")
+    }
 }
 
 public struct OrchestratorTotals: Decodable, Sendable, Equatable {
@@ -30,6 +63,22 @@ public struct OrchestratorTotals: Decodable, Sendable, Equatable {
     public var live: Int = 0
     public var done: Int = 0
     public var blocked: Int = 0
+
+    enum CodingKeys: String, CodingKey {
+        case inputTokens, outputTokens, costUsd, live, done, blocked
+    }
+
+    public init() {}
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        inputTokens = c.or(.inputTokens, 0)
+        outputTokens = c.or(.outputTokens, 0)
+        costUsd = c.or(.costUsd, 0)
+        live = c.or(.live, 0)
+        done = c.or(.done, 0)
+        blocked = c.or(.blocked, 0)
+    }
 }
 
 public struct OrchestratorTask: Decodable, Sendable, Equatable, Identifiable {
@@ -81,6 +130,45 @@ public struct OrchestratorAgent: Decodable, Sendable, Equatable, Identifiable {
 
     public var id: Int { issue }
     public var displayTitle: String { title ?? "issue \(issue)" }
+
+    enum CodingKeys: String, CodingKey {
+        case issue, title, state, cycle, prNumber, branch, elapsedSeconds, inputTokens
+        case outputTokens, costUsd, pid, cpuPercent, rssBytes, lastError
+        case weeklyPercentUsed, lastActivity, activityAgeSeconds, turns, children
+        case childrenRunning, childrenDone, childrenFailed, worktree, worktreeDiskBytes
+        case tasks
+    }
+
+    public init() {}
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        issue = c.or(.issue, 0)
+        title = c.maybe(.title)
+        state = c.or(.state, "")
+        cycle = c.or(.cycle, 0)
+        prNumber = c.maybe(.prNumber)
+        branch = c.or(.branch, "")
+        elapsedSeconds = c.or(.elapsedSeconds, 0)
+        inputTokens = c.or(.inputTokens, 0)
+        outputTokens = c.or(.outputTokens, 0)
+        costUsd = c.or(.costUsd, 0)
+        pid = c.or(.pid, 0)
+        cpuPercent = c.or(.cpuPercent, 0)
+        rssBytes = c.or(.rssBytes, 0)
+        lastError = c.or(.lastError, "")
+        weeklyPercentUsed = c.maybe(.weeklyPercentUsed)
+        lastActivity = c.maybe(.lastActivity)
+        activityAgeSeconds = c.maybe(.activityAgeSeconds)
+        turns = c.or(.turns, 0)
+        children = c.maybe(.children)
+        childrenRunning = c.or(.childrenRunning, 0)
+        childrenDone = c.or(.childrenDone, 0)
+        childrenFailed = c.or(.childrenFailed, 0)
+        worktree = c.or(.worktree, "")
+        worktreeDiskBytes = c.maybe(.worktreeDiskBytes)
+        tasks = c.maybe(.tasks)
+    }
 }
 
 public struct OrchestratorUsageWindow: Decodable, Sendable, Equatable {
@@ -92,6 +180,19 @@ public struct OrchestratorLimits: Decodable, Sendable, Equatable {
     public var weekly: OrchestratorUsageWindow?
     public var fiveHour: OrchestratorUsageWindow?
     public var planType: String = ""
+
+    enum CodingKeys: String, CodingKey {
+        case weekly, fiveHour, planType
+    }
+
+    public init() {}
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        weekly = c.maybe(.weekly)
+        fiveHour = c.maybe(.fiveHour)
+        planType = c.or(.planType, "")
+    }
 }
 
 public struct OrchestratorRecent: Decodable, Sendable, Equatable, Identifiable {
@@ -104,6 +205,22 @@ public struct OrchestratorRecent: Decodable, Sendable, Equatable, Identifiable {
 
     public var id: Int { issue }
     public var displayTitle: String { title ?? "issue \(issue)" }
+
+    enum CodingKeys: String, CodingKey {
+        case issue, state, prNumber, costUsd, title, lastError
+    }
+
+    public init() {}
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        issue = c.or(.issue, 0)
+        state = c.or(.state, "")
+        prNumber = c.maybe(.prNumber)
+        costUsd = c.or(.costUsd, 0)
+        title = c.maybe(.title)
+        lastError = c.or(.lastError, "")
+    }
 }
 
 public struct OrchestratorDisk: Decodable, Sendable, Equatable {
@@ -121,6 +238,19 @@ public struct OrchestratorAuth: Decodable, Sendable, Equatable {
     public var mode: String = "unknown"
     public var planType: String = ""
     public var billed: Bool = false
+
+    enum CodingKeys: String, CodingKey {
+        case mode, planType, billed
+    }
+
+    public init() {}
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        mode = c.or(.mode, "unknown")
+        planType = c.or(.planType, "")
+        billed = c.or(.billed, false)
+    }
 }
 
 public struct OrchestratorSnapshot: Decodable, Sendable, Equatable {
@@ -162,5 +292,32 @@ public struct OrchestratorSnapshot: Decodable, Sendable, Equatable {
         if costIsEstimate { return "est ~" + amounts }
         if auth.mode == "unknown" { return amounts + " billed" }
         return amounts
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion, name, at, healthy, mode, repo, daemon, budget, totals, agents
+        case recent, limits, disk, auth, costIsEstimate, error
+    }
+
+    public init() {}
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = c.or(.schemaVersion, 0)
+        name = c.or(.name, "")
+        at = c.or(.at, Date.distantPast)
+        healthy = c.or(.healthy, false)
+        mode = c.or(.mode, "")
+        repo = c.or(.repo, "")
+        daemon = c.or(.daemon, OrchestratorDaemon())
+        budget = c.or(.budget, OrchestratorBudget())
+        totals = c.or(.totals, OrchestratorTotals())
+        agents = c.or(.agents, [])
+        recent = c.or(.recent, [])
+        limits = c.maybe(.limits)
+        disk = c.maybe(.disk)
+        auth = c.or(.auth, OrchestratorAuth())
+        costIsEstimate = c.or(.costIsEstimate, false)
+        error = c.or(.error, "")
     }
 }

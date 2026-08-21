@@ -88,7 +88,7 @@ struct APITests {
         let client = FakeHTTPClient(status: 200, body: FixtureJSON.agentStatus)
         let api = ServtermAPI(client: client)
         let status = try await api.agentStatus(baseURL: "http://100.0.0.1:7843")
-        #expect(status.nodeID == "gopadel-ci1")
+        #expect(status.nodeID == "node-a")
         let request = try #require(await client.requests.first)
         #expect(request.url?.absoluteString == "http://100.0.0.1:7843/v1/status")
         #expect(request.value(forHTTPHeaderField: "Authorization") == nil)

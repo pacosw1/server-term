@@ -1,0 +1,6 @@
+# Build output. Every file here comes back from a build.
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/
+xcuserdata/

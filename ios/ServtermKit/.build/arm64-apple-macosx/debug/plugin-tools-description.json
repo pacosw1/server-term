@@ -36,6 +36,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/DecodeHelpers.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Format.swift"
         },
         {
@@ -69,6 +73,7 @@
       "objects" : [
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AgentModels.swift.o",
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AppConfig.swift.o",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/DecodeHelpers.swift.o",
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Format.swift.o",
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/OrchestratorModels.swift.o",
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Prober.swift.o",
@@ -136,6 +141,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/DecodeHelpers.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Format.swift.o"
         },
         {
@@ -163,6 +172,7 @@
       "sources" : [
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AgentModels.swift",
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AppConfig.swift",
+        "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/DecodeHelpers.swift",
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Format.swift",
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/OrchestratorModels.swift",
         "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Prober.swift",
@@ -435,6 +445,7 @@
       "-c",
       "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AgentModels.swift",
       "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/AppConfig.swift",
+      "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/DecodeHelpers.swift",
       "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Format.swift",
       "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/OrchestratorModels.swift",
       "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Prober.swift",
@@ -669,6 +680,10 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/DecodeHelpers.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Format.swift"
         },
         {
@@ -718,6 +733,10 @@
         {
           "kind" : "file",
           "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AppConfig.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/DecodeHelpers.swift.o"
         },
         {
           "kind" : "file",

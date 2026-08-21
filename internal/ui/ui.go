@@ -128,6 +128,8 @@ type Model struct {
 	orchestrator                   widget.OrchestratorSnapshot
 	orchestratorSel                int
 	agentUsage                     map[int][]agentUsagePoint
+	agentTail                      map[int][]string
+	agentTick                      int
 	orchestratorModeMenu           bool
 	orchestratorModeCursor         int
 	orchestratorModeConfirm        bool
@@ -147,7 +149,7 @@ func New(cfg config.Config) Model {
 			n++
 		}
 	}
-	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopFrameRaw: map[int][]byte{}, desktopFrameSize: map[int]image.Point{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, devtoolVersions: map[string]string{}, agentUsage: map[int][]agentUsagePoint{}, collecting: n > 0, pending: n}
+	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopFrameRaw: map[int][]byte{}, desktopFrameSize: map[int]image.Point{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, devtoolVersions: map[string]string{}, agentUsage: map[int][]agentUsagePoint{}, agentTail: map[int][]string{}, collecting: n > 0, pending: n}
 }
 func (m Model) Init() tea.Cmd {
 	cmds := append(m.collectAll(), m.nextFrame())
@@ -161,7 +163,14 @@ func (m Model) Init() tea.Cmd {
 // the same cadence as the server metrics, independent of the SSH poll cycle
 // so an all-agent inventory (no SSH servers) still refreshes the widget.
 func (m Model) nextOrchestratorTick() tea.Cmd {
-	return tea.Tick(m.cfg.RefreshInterval, func(t time.Time) tea.Msg { return orchestratorTickMsg(t) })
+	return tea.Tick(orchestratorRefresh(m.agentsTabFocused()), func(t time.Time) tea.Msg {
+		return orchestratorTickMsg(t)
+	})
+}
+
+// agentsTabFocused reports whether the reader is looking at the AGENTS tab.
+func (m Model) agentsTabFocused() bool {
+	return m.detail && m.detailTab == 10
 }
 
 // orchestratorWidget returns the first configured "orchestrator" widget, or
@@ -809,7 +818,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				pts = pts[len(pts)-m.cfg.HistorySize:]
 			}
 			m.agentUsage[a.Issue] = pts
+			if a.LastActivity != nil {
+				m.agentTail[a.Issue] = appendTail(m.agentTail[a.Issue], *a.LastActivity, agentTailSize)
+			}
 		}
+		// One step per snapshot, so the spinner turns at the refresh rate.
+		m.agentTick++
 		for issue := range m.agentUsage {
 			if !live[issue] {
 				delete(m.agentUsage, issue)
@@ -1233,6 +1247,49 @@ func orchestratorHistoryView(snap widget.OrchestratorSnapshot, width int) string
 	return out
 }
 
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+// spinnerFrame turns a tick counter into one frame of the spinner. A running
+// agent that prints a still row for minutes reads as a hang, so the motion is
+// the point.
+func spinnerFrame(tick int) string {
+	n := len(spinnerFrames)
+	return spinnerFrames[((tick%n)+n)%n]
+}
+
+const agentTailSize = 6
+
+// appendTail records one activity line for an agent, newest last.
+//
+// The daemon reports the CURRENT line on every poll, so the same line arrives
+// many times while one command runs. Repeating it would fill the tail with a
+// single command, so only a change is kept.
+func appendTail(tail []string, line string, cap int) []string {
+	if line == "" {
+		return tail
+	}
+	if len(tail) > 0 && tail[len(tail)-1] == line {
+		return tail
+	}
+	out := append(tail, line)
+	if len(out) > cap {
+		out = out[len(out)-cap:]
+	}
+	return out
+}
+
+// orchestratorRefresh is how often the widget re-reads the daemon.
+//
+// A person watching the tab wants the tail to move; a person on another tab
+// wants their bandwidth and the daemon's CPU back. So the rate follows the
+// focus rather than being one compromise between the two.
+func orchestratorRefresh(focused bool) time.Duration {
+	if focused {
+		return time.Second
+	}
+	return 15 * time.Second
+}
+
 func (m Model) orchestratorView() string {
 	snap := m.orchestrator
 	if snap.Error != "" {
@@ -1268,7 +1325,7 @@ func (m Model) orchestratorView() string {
 	}
 	out += "  " + titleStyle.Render("ACTIVE AGENTS") + "  " + dimStyle.Render("live task list") + "\n\n"
 	contentWidth := max(70, m.width-4)
-	out += dimStyle.Render(truncate(fmt.Sprintf("  %-6s %-13s %-9s %-6s %-4s %s", "ISSUE", "STATE", "ELAPSED", "WK%", "SUB", "TITLE"), contentWidth)) + "\n"
+	out += dimStyle.Render(truncate(fmt.Sprintf("  %-6s %s %-11s %-9s %-6s %-4s %s", "ISSUE", " ", "STATE", "ELAPSED", "WK%", "SUB", "TITLE"), contentWidth)) + "\n"
 	for i, a := range snap.Agents {
 		wk := "—"
 		if a.WeeklyPercentUsed != nil {
@@ -1281,7 +1338,14 @@ func (m Model) orchestratorView() string {
 		if len(a.Children) > 0 {
 			sub = fmt.Sprintf("+%d", len(a.Children))
 		}
-		line := fmt.Sprintf("  #%-5d %-13s %-9s %-6s %-4s %s", a.Issue, a.State, elapsedDuration(time.Duration(a.ElapsedSeconds)*time.Second), wk, sub, truncate(a.Title, 40))
+		// A running agent gets a turning spinner. A still row for minutes
+		// reads as a hang, even when the work is going fine.
+		mark := " "
+		if a.PID != 0 {
+			mark = spinnerFrame(m.agentTick)
+		}
+		line := fmt.Sprintf("  #%-5d %s %-11s %-9s %-6s %-4s %s", a.Issue, mark, a.State,
+			elapsedDuration(time.Duration(a.ElapsedSeconds)*time.Second), wk, sub, truncate(a.Title, 40))
 		if i == m.orchestratorSel {
 			out += lipgloss.NewStyle().Background(panel).Bold(true).Foreground(cyan).Render(pad(line, contentWidth)) + "\n"
 		} else {
@@ -1448,13 +1512,28 @@ func (m Model) orchestratorAgentDetail(sel widget.OrchestratorAgent) string {
 	b.WriteString(orchestratorCard(where, muted, cardWidth))
 
 	// What it is doing right now, and why it stopped if it did.
-	if sel.LastActivity != nil {
-		now := *sel.LastActivity
+	// The tail: what the agent has been doing, newest last. One line is a
+	// snapshot; several lines show whether it is making progress.
+	if tail := m.agentTail[sel.Issue]; len(tail) > 0 {
+		head := lipgloss.NewStyle().Bold(true).Foreground(accent).Render("ACTIVITY")
 		if sel.ActivityAgeSeconds != nil {
-			now += fmt.Sprintf("  (%s ago)", elapsedDuration(time.Duration(*sel.ActivityAgeSeconds)*time.Second))
+			head += dimStyle.Render(fmt.Sprintf("  last change %s ago",
+				elapsedDuration(time.Duration(*sel.ActivityAgeSeconds)*time.Second)))
 		}
+		var t strings.Builder
+		t.WriteString(head)
+		for i, line := range tail {
+			if i == len(tail)-1 {
+				t.WriteString("\n" + lipgloss.NewStyle().Foreground(accent).Render(spinnerFrame(m.agentTick)+" ") + line)
+			} else {
+				t.WriteString("\n" + dimStyle.Render("  "+line))
+			}
+		}
+		b.WriteString(orchestratorCard(t.String(), accent, cardWidth))
+	} else if sel.LastActivity != nil {
 		b.WriteString(orchestratorCard(
-			lipgloss.NewStyle().Bold(true).Foreground(accent).Render("NOW")+"\n"+now, accent, cardWidth))
+			lipgloss.NewStyle().Bold(true).Foreground(accent).Render("NOW")+"\n"+*sel.LastActivity,
+			accent, cardWidth))
 	}
 	if sel.LastError != "" {
 		b.WriteString(orchestratorCard(

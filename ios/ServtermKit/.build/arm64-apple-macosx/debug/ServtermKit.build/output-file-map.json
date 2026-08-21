@@ -16,6 +16,13 @@
     "swift-dependencies": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AppConfig.swiftdeps",
     "diagnostics": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/AppConfig.dia"
   },
+  "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/DecodeHelpers.swift": {
+    "dependencies": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/DecodeHelpers.d",
+    "object": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/DecodeHelpers.swift.o",
+    "swiftmodule": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/DecodeHelpers~partial.swiftmodule",
+    "swift-dependencies": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/DecodeHelpers.swiftdeps",
+    "diagnostics": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/DecodeHelpers.dia"
+  },
   "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/Sources/ServtermKit/Format.swift": {
     "dependencies": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Format.d",
     "object": "/Users/franciscosainzwilliams/Documents/GitHub/server-term/ios/ServtermKit/.build/arm64-apple-macosx/debug/ServtermKit.build/Format.swift.o",

@@ -8,14 +8,14 @@ struct ConfigTests {
     func yaml() throws {
         let imported = try ConfigImport.parse(FixtureJSON.configYAML)
         #expect(imported.servers.count == 2)
-        #expect(imported.servers[0].name == "hetzner-32cpu")
-        #expect(imported.servers[0].agentURL == "http://100.93.34.43:7843")
-        #expect(imported.servers[0].location == "Hetzner EU")
-        #expect(imported.servers[1].name == "office-nvrd")
-        #expect(imported.servers[1].location == "Office Mac Studio")
+        #expect(imported.servers[0].name == "server-a")
+        #expect(imported.servers[0].agentURL == "http://100.64.0.1:7843")
+        #expect(imported.servers[0].location == "Site A")
+        #expect(imported.servers[1].name == "server-b")
+        #expect(imported.servers[1].location == "Site B")
         let orchestrator = try #require(imported.orchestrator)
-        #expect(orchestrator.name == "pitsa-agents")
-        #expect(orchestrator.endpoint == "http://100.93.34.43:7844")
+        #expect(orchestrator.name == "agents")
+        #expect(orchestrator.endpoint == "http://100.64.0.1:7844")
     }
 
     @Test("the import never carries a token file into the app")

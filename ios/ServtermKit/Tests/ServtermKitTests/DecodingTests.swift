@@ -7,7 +7,7 @@ struct DecodingTests {
     @Test("the date parser reads every offset and fraction that Go writes")
     func dates() throws {
         let nanoseconds = try #require(ServtermDate.parse("2026-08-21T06:10:56.998458518+02:00"))
-        #expect(abs(nanoseconds.timeIntervalSince1970 - 1787292656.998) < 0.002)
+        #expect(abs(nanoseconds.timeIntervalSince1970 - 1787285456.998) < 0.002)
         let milliseconds = try #require(ServtermDate.parse("2026-08-21T04:11:03.161Z"))
         #expect(abs(milliseconds.timeIntervalSince1970 - 1787285463.161) < 0.002)
         let seconds = try #require(ServtermDate.parse("2026-08-21T04:11:03Z"))
@@ -19,7 +19,7 @@ struct DecodingTests {
     func agentStatus() throws {
         let status = try JSONDecoding.agent.decode(AgentStatus.self, from: Data(FixtureJSON.agentStatus.utf8))
         #expect(status.service == "servterm-agent")
-        #expect(status.nodeID == "gopadel-ci1")
+        #expect(status.nodeID == "node-a")
         #expect(status.version == 1)
     }
 
@@ -28,7 +28,7 @@ struct DecodingTests {
         let page = try JSONDecoding.agent.decode([WireSample].self, from: Data(FixtureJSON.history.utf8))
         #expect(page.count == 2)
         let sample = try #require(page.map(\.sample).max(by: { $0.at < $1.at }))
-        #expect(sample.hostname == "gopadel-ci1")
+        #expect(sample.hostname == "node-a")
         #expect(sample.online)
         #expect(sample.cores == 32)
         #expect(abs(sample.cpuPercent - 1.5) < 0.001)
@@ -90,5 +90,18 @@ struct DecodingTests {
             OrchestratorSnapshot.self, from: Data(json.utf8))
         #expect(snapshot.costText == "$7.15/$7.50 day")
         #expect(snapshot.accountLabel == "api key")
+    }
+
+    @Test("a snapshot with missing keys keeps safe defaults instead of failing")
+    func partialSnapshot() throws {
+        let snapshot = try JSONDecoding.orchestrator.decode(
+            OrchestratorSnapshot.self, from: Data("{\"mode\":\"paused\"}".utf8))
+        #expect(snapshot.mode == "paused")
+        #expect(snapshot.agents.isEmpty)
+        #expect(snapshot.recent.isEmpty)
+        #expect(snapshot.limits == nil)
+        #expect(snapshot.disk == nil)
+        #expect(snapshot.healthy == false)
+        #expect(snapshot.auth.mode == "unknown")
     }
 }

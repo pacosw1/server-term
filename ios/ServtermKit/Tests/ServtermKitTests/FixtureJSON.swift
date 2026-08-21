@@ -4,13 +4,13 @@ import Foundation
 /// The tokens and the private data are removed.
 enum FixtureJSON {
     static let agentStatus = """
-    {"latest_at":"2026-08-21T06:10:57.974178941+02:00","node_id":"gopadel-ci1","service":"servterm-agent","version":1}
+    {"latest_at":"2026-08-21T06:10:57.974178941+02:00","node_id":"node-a","service":"servterm-agent","version":1}
     """
 
     static let history = """
-    [{"version":1,"node_id":"gopadel-ci1","sample":{
+    [{"version":1,"node_id":"node-a","sample":{
       "At":"2026-08-21T06:10:55.998458518+02:00","Online":true,"Error":"","Latency":153404704,
-      "Hostname":"gopadel-ci1","OS":"Debian GNU/Linux 13 (trixie)","Kernel":"6.12.94+deb13-amd64",
+      "Hostname":"node-a","OS":"Debian GNU/Linux 13 (trixie)","Kernel":"6.12.94+deb13-amd64",
       "UptimeSeconds":348948.74,"CPUPercent":0.7191994996873046,"Cores":32,
       "Load1":0.79,"Load5":4.58,"Load15":3.47,
       "MemTotal":67196661760,"MemAvailable":62230171648,"SwapTotal":17162039296,"SwapFree":16293031936,
@@ -21,9 +21,9 @@ enum FixtureJSON {
       "Accelerators":[{"Kind":"GPU","Name":"Intel integrated GPU","Utilization":0,"UtilizationKnown":true}],
       "Processes":[{"PID":513039,"User":"servterm","Command":"ps","CPU":100,"Memory":0,"RSS":4902912}]
     }},
-    {"version":1,"node_id":"gopadel-ci1","sample":{
+    {"version":1,"node_id":"node-a","sample":{
       "At":"2026-08-21T06:10:56.998458518+02:00","Online":true,"Error":"","Latency":153404704,
-      "Hostname":"gopadel-ci1","OS":"Debian GNU/Linux 13 (trixie)","Kernel":"6.12.94+deb13-amd64",
+      "Hostname":"node-a","OS":"Debian GNU/Linux 13 (trixie)","Kernel":"6.12.94+deb13-amd64",
       "UptimeSeconds":348949.74,"CPUPercent":1.5,"Cores":32,
       "Load1":0.79,"Load5":4.58,"Load15":3.47,
       "MemTotal":67196661760,"MemAvailable":62230171648,"SwapTotal":17162039296,"SwapFree":16293031936,
@@ -60,25 +60,25 @@ enum FixtureJSON {
     refresh_interval: 3s
     history_size: 60
     servers:
-      - name: hetzner-32cpu
-        address: 100.93.34.43
+      - name: server-a
+        address: 100.64.0.1
         user: root
-        location: Hetzner EU
+        location: Site A
         tags: [production, ci, tailscale]
-        agent_url: http://100.93.34.43:7843
-        token_file: ~/tokens/hetzner-32cpu
-      - name: office-nvrd
-        address: 100.89.120.115
+        agent_url: http://100.64.0.1:7843
+        token_file: ~/tokens/server-a
+      - name: server-b
+        address: 100.64.0.2
         user: paco
-        location: Office Mac Studio
-        agent_url: http://100.89.120.115:7843
+        location: Site B
+        agent_url: http://100.64.0.2:7843
     widgets:
-      - name: pitsa-agents
+      - name: agents
         type: orchestrator
-        endpoint: http://100.93.34.43:7844
-        token_file: ~/tokens/pitsa-agents
+        endpoint: http://100.64.0.1:7844
+        token_file: ~/tokens/agents
       - name: office-nvr
         type: nvr
-        endpoint: http://100.89.120.115:8085
+        endpoint: http://100.64.0.2:8085
     """
 }
