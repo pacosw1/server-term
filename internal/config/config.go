@@ -45,8 +45,8 @@ type Server struct {
 	TokenFile    string   `yaml:"token_file,omitempty"`
 }
 
-// Widget is a read-only external provider. Supported types are nvr and
-// orchestrator.
+// Widget is a read-only external provider. Supported types are nvr,
+// orchestrator, and cip.
 type Widget struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
@@ -62,19 +62,19 @@ type Widget struct {
 // Desktop describes a managed graphical session. Credentials stay outside
 // YAML; the agent endpoint is the authenticated control/status plane.
 type Desktop struct {
-	Name      string `yaml:"name"`
-	Platform  string `yaml:"platform"`
-	Host      string `yaml:"host"`
-	VNCPort   int    `yaml:"vnc_port,omitempty"`
-	AgentURL  string `yaml:"agent_url"`
-	TokenEnv  string `yaml:"token_env,omitempty"`
-	TokenFile string `yaml:"token_file,omitempty"`
-	SSHHost   string `yaml:"ssh_host,omitempty"`
-	SSHUser   string `yaml:"ssh_user,omitempty"`
-	SSHPort   int    `yaml:"ssh_port,omitempty"`
-	Backend   string `yaml:"backend,omitempty"`
-	RefreshFPS int `yaml:"refresh_fps,omitempty"`
-	Quality string `yaml:"quality,omitempty"`
+	Name       string `yaml:"name"`
+	Platform   string `yaml:"platform"`
+	Host       string `yaml:"host"`
+	VNCPort    int    `yaml:"vnc_port,omitempty"`
+	AgentURL   string `yaml:"agent_url"`
+	TokenEnv   string `yaml:"token_env,omitempty"`
+	TokenFile  string `yaml:"token_file,omitempty"`
+	SSHHost    string `yaml:"ssh_host,omitempty"`
+	SSHUser    string `yaml:"ssh_user,omitempty"`
+	SSHPort    int    `yaml:"ssh_port,omitempty"`
+	Backend    string `yaml:"backend,omitempty"`
+	RefreshFPS int    `yaml:"refresh_fps,omitempty"`
+	Quality    string `yaml:"quality,omitempty"`
 }
 
 // HostAddress is the server address this widget belongs to. An explicit
@@ -178,8 +178,8 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(w.Name) == "" || strings.TrimSpace(w.Endpoint) == "" {
 			return fmt.Errorf("%s.name and endpoint are required", p)
 		}
-		if w.Type != "nvr" && w.Type != "orchestrator" {
-			return fmt.Errorf("%s.type must be nvr or orchestrator", p)
+		if w.Type != "nvr" && w.Type != "orchestrator" && w.Type != "cip" {
+			return fmt.Errorf("%s.type must be nvr, orchestrator, or cip", p)
 		}
 		if (w.TokenEnv == "") == (w.TokenFile == "") {
 			return fmt.Errorf("%s requires exactly one of token_env or token_file", p)
@@ -201,8 +201,12 @@ func (c Config) Validate() error {
 		if d.SSHPort < 0 || d.SSHPort > 65535 || d.VNCPort < 0 || d.VNCPort > 65535 {
 			return fmt.Errorf("%s.ssh_port is invalid", p)
 		}
-		if d.RefreshFPS < 0 || d.RefreshFPS > 60 { return fmt.Errorf("%s.refresh_fps must be between 0 and 60", p) }
-		if d.Quality != "" && d.Quality != "speed" && d.Quality != "balanced" && d.Quality != "quality" { return fmt.Errorf("%s.quality must be speed, balanced, or quality", p) }
+		if d.RefreshFPS < 0 || d.RefreshFPS > 60 {
+			return fmt.Errorf("%s.refresh_fps must be between 0 and 60", p)
+		}
+		if d.Quality != "" && d.Quality != "speed" && d.Quality != "balanced" && d.Quality != "quality" {
+			return fmt.Errorf("%s.quality must be speed, balanced, or quality", p)
+		}
 	}
 	return nil
 }

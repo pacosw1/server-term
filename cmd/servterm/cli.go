@@ -373,6 +373,24 @@ func cliWidgets(ctx context.Context, cfg config.Config, wanted string, jsonOut b
 			} else {
 				fmt.Printf("%-20s %s  %s  agents %d live  spend %s  CPU %.1f%%\n", snapshot.Name, map[bool]string{true: "healthy", false: "degraded"}[snapshot.Healthy], snapshot.AccountLabel(), snapshot.Totals.Live, snapshot.CostText(), snapshot.Daemon.CPUPercent)
 			}
+		case "cip":
+			snapshot := widget.FetchCIP(ctx, provider, token)
+			if snapshot.Error != "" {
+				failed = true
+			}
+			if jsonOut {
+				if err := printJSON(snapshot); err != nil {
+					return err
+				}
+			} else {
+				fmt.Printf("%-20s %s  %s\n", snapshot.Name, map[bool]string{true: "healthy", false: "degraded"}[snapshot.Healthy], snapshot.SummaryLine())
+				for _, line := range snapshot.RunLines(snapshot.At) {
+					fmt.Printf("  %s\n", line)
+				}
+				for _, line := range snapshot.StorageLines() {
+					fmt.Printf("  %s\n", line)
+				}
+			}
 		default:
 			snapshot := widget.FetchNVR(ctx, provider, token)
 			if snapshot.Error != "" {

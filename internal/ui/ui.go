@@ -90,6 +90,8 @@ type devtoolActionMsg struct {
 type orchestratorMsg widget.OrchestratorSnapshot
 type orchestratorTickMsg time.Time
 type orchestratorModeMsg widget.OrchestratorModeResult
+type cipMsg widget.CIPSnapshot
+type cipTickMsg time.Time
 
 // agentUsagePoint is one CPU/memory reading for one agent, kept in a small
 // ring buffer so the AGENTS tab can draw a live trend, the same way the
@@ -136,6 +138,7 @@ type Model struct {
 	orchestratorModeBusy           bool
 	orchestratorModeMessage        string
 	orchestratorModeMessageIsError bool
+	cip                            widget.CIPSnapshot
 	width, height                  int
 	collecting                     bool
 	pending                        int
@@ -155,6 +158,9 @@ func (m Model) Init() tea.Cmd {
 	cmds := append(m.collectAll(), m.nextFrame())
 	if m.orchestratorWidget() != nil {
 		cmds = append(cmds, m.fetchOrchestrator(), m.nextOrchestratorTick())
+	}
+	if m.cipWidget() != nil {
+		cmds = append(cmds, m.fetchCIP(), m.nextCIPTick())
 	}
 	return tea.Batch(cmds...)
 }
@@ -207,11 +213,64 @@ func (m Model) orchestratorWidgetFor(index int) *config.Widget {
 	return nil
 }
 
+// tabCIP is the CIP tab. A detailTab value is the fixed identity of a tab.
+// The body switch and the shortcut keys read it. It is NOT the position of
+// the tab on screen, because the optional tabs show only on some servers.
+const tabCIP = 11
+
+// detailTabEntry is one tab of the detail view. Index is the tab identity.
+// Label is the text on screen, which starts with the key that selects the
+// tab. Keep the two apart: a list built from the configured tabs would give
+// a tab the wrong identity if the position set it.
+type detailTabEntry struct {
+	Index int
+	Label string
+}
+
+// detailTabs lists the tabs the server at index shows, in screen order. A
+// tab the server does not have is absent, so a reader can never select a
+// tab that shows nothing.
+func (m Model) detailTabs(index int) []detailTabEntry {
+	tabs := []detailTabEntry{
+		{0, "1 CPU"}, {1, "2 MEMORY"}, {2, "3 STORAGE"}, {3, "4 NETWORK"},
+		{4, "5 RUNNERS"}, {5, "6 PROCESSES"}, {6, "7 ACCEL"},
+	}
+	if m.desktopForServer(index) != nil {
+		tabs = append(tabs, detailTabEntry{7, "8 DESKTOP"})
+	}
+	tabs = append(tabs, detailTabEntry{8, "9 SSH"}, detailTabEntry{9, "10 DEVTOOLS"})
+	if m.orchestratorWidgetFor(index) != nil {
+		tabs = append(tabs, detailTabEntry{10, "o AGENTS"})
+	}
+	if m.cipWidgetFor(index) != nil {
+		tabs = append(tabs, detailTabEntry{tabCIP, "c CIP"})
+	}
+	return tabs
+}
+
+// nextDetailTab is the tab that follows current on the server at index. It
+// wraps at the end of the list. It skips a tab this server does not have,
+// so the cycle shows only the tabs the reader can see. A current tab that
+// the server does not have starts the cycle again at the first tab.
+func (m Model) nextDetailTab(index, current int) int {
+	tabs := m.detailTabs(index)
+	for i, entry := range tabs {
+		if entry.Index == current {
+			return tabs[(i+1)%len(tabs)].Index
+		}
+	}
+	return tabs[0].Index
+}
+
 // clampDetailTab leaves a tab that the server under the cursor does not
 // have. The cursor moves only in the overview, so the detail view can open
 // on a server without the AGENTS tab while that tab is still selected.
 func (m *Model) clampDetailTab() {
 	if m.detailTab == 10 && m.orchestratorWidgetFor(m.cursor) == nil {
+		m.detailTab = 0
+		m.detailScroll = 0
+	}
+	if m.detailTab == tabCIP && m.cipWidgetFor(m.cursor) == nil {
 		m.detailTab = 0
 		m.detailScroll = 0
 	}
@@ -234,6 +293,80 @@ func (m Model) fetchOrchestrator() tea.Cmd {
 		defer cancel()
 		return orchestratorMsg(widget.FetchOrchestrator(ctx, p, token))
 	}
+}
+
+// cipWidget returns the first configured "cip" widget, or nil when the
+// inventory does not have one. Use it only to fetch the snapshot. The CIP
+// tab uses cipWidgetFor, because the daemon runs on one server, not on
+// every server.
+func (m Model) cipWidget() *config.Widget {
+	for i := range m.cfg.Widgets {
+		if m.cfg.Widgets[i].Type == "cip" {
+			return &m.cfg.Widgets[i]
+		}
+	}
+	return nil
+}
+
+// cipWidgetFor returns the cip widget that runs on the server at index, or
+// nil when that server does not run one. A widget with no host and no
+// endpoint host belongs to no server, so the tab stays hidden instead of
+// appearing on every server.
+func (m Model) cipWidgetFor(index int) *config.Widget {
+	if index < 0 || index >= len(m.cfg.Servers) {
+		return nil
+	}
+	address := m.cfg.Servers[index].Address
+	for i := range m.cfg.Widgets {
+		w := &m.cfg.Widgets[i]
+		if w.Type != "cip" {
+			continue
+		}
+		if host := w.HostAddress(); host != "" && host == address {
+			return w
+		}
+	}
+	return nil
+}
+
+// cipTabFocused reports whether the reader is looking at the CIP tab.
+func (m Model) cipTabFocused() bool {
+	return m.detail && m.detailTab == tabCIP
+}
+
+// fetchCIP does one authenticated read of the cip runs and storage
+// endpoints. It never starts, stops, or cancels a pipeline run.
+func (m Model) fetchCIP() tea.Cmd {
+	provider := m.cipWidget()
+	if provider == nil {
+		return nil
+	}
+	p := *provider
+	return func() tea.Msg {
+		token, err := orchestratorToken(p)
+		if err != nil {
+			return cipMsg(widget.CIPSnapshot{Name: p.Name, At: time.Now(), Error: err.Error()})
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return cipMsg(widget.FetchCIP(ctx, p, token))
+	}
+}
+
+// nextCIPTick schedules the next cip refresh.
+func (m Model) nextCIPTick() tea.Cmd {
+	return tea.Tick(cipRefresh(m.cipTabFocused()), func(t time.Time) tea.Msg {
+		return cipTickMsg(t)
+	})
+}
+
+// cipRefresh reads often while the reader watches the tab, and rarely when
+// the reader looks somewhere else, so an idle session stays cheap.
+func cipRefresh(focused bool) time.Duration {
+	if focused {
+		return 2 * time.Second
+	}
+	return 20 * time.Second
 }
 
 // orchestratorToken reads the widget's token the same way for every
@@ -362,14 +495,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.sshText = ""
 				return m, nil
 			case "tab":
-				maxTabs := 9
-				if m.desktopForServer(m.cursor) != nil {
-					maxTabs = 10
-				}
-				if m.orchestratorWidgetFor(m.cursor) != nil {
-					maxTabs++
-				}
-				m.detailTab = (m.detailTab + 1) % maxTabs
+				m.detailTab = m.nextDetailTab(m.cursor, m.detailTab)
 				if m.detailTab == 7 {
 					m.desktopClear = ""
 				}
@@ -536,14 +662,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.detailTab == 7 {
 					m.desktopClear = clearDesktopImage()
 				}
-				maxTabs := 9
-				if m.desktopForServer(m.cursor) != nil {
-					maxTabs = 10
-				}
-				if m.orchestratorWidgetFor(m.cursor) != nil {
-					maxTabs++
-				}
-				m.detailTab = (m.detailTab + 1) % maxTabs
+				m.detailTab = m.nextDetailTab(m.cursor, m.detailTab)
 				if m.detailTab == 7 {
 					m.desktopClear = ""
 				}
@@ -587,8 +706,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detailScroll = 0
 			}
 		case "c":
+			// The desktop tab owned this key first. It keeps it there, so
+			// the new tab takes no shortcut away from the reader.
 			if m.detail && m.detailTab == 7 {
 				return m, openDesktop(m.desktopForServer(m.cursor))
+			}
+			if m.detail && m.cipWidgetFor(m.cursor) != nil {
+				m.detailTab = tabCIP
+				m.detailScroll = 0
 			}
 		case "s":
 			if !m.detail {
@@ -851,6 +976,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.fetchOrchestrator()
 	case orchestratorTickMsg:
 		return m, tea.Batch(m.fetchOrchestrator(), m.nextOrchestratorTick())
+	case cipMsg:
+		m.cip = widget.CIPSnapshot(msg)
+		return m, nil
+	case cipTickMsg:
+		return m, tea.Batch(m.fetchCIP(), m.nextCIPTick())
 	case tickMsg:
 		if m.collecting {
 			return m, nil
@@ -1060,18 +1190,12 @@ func (m Model) detailView() string {
 		return "  " + back + "\n\n  " + errStyle.Bold(true).Render("OFFLINE") + "  " + truncate(s.Error, max(20, m.width-16)) + "\n"
 	}
 	info := fmt.Sprintf("  %s\n  %s  •  %s  •  kernel %s\n  %d cores  •  uptime %s  •  %d ms\n\n", back, or(s.Hostname, srv.Address), s.OS, s.Kernel, s.Cores, duration(s.UptimeSeconds), s.Latency.Milliseconds())
-	labels := []string{"1 CPU", "2 MEMORY", "3 STORAGE", "4 NETWORK", "5 RUNNERS", "6 PROCESSES", "7 ACCEL"}
-	if desktop := m.desktopForServer(m.cursor); desktop != nil {
-		labels = append(labels, "8 DESKTOP")
-	}
-	labels = append(labels, "9 SSH")
-	labels = append(labels, "10 DEVTOOLS")
-	if m.orchestratorWidgetFor(m.cursor) != nil {
-		labels = append(labels, "o AGENTS")
-	}
 	tabs := "  "
-	for i, label := range labels {
-		tabs += tabLabel(label, m.detailTab == i) + "  "
+	// Compare the tab identity, not the position. The optional tabs shift
+	// every later position, so a position test would underline the wrong
+	// tab whenever a server has no desktop.
+	for _, entry := range m.detailTabs(m.cursor) {
+		tabs += tabLabel(entry.Label, m.detailTab == entry.Index) + "  "
 	}
 	tabs += "   " + dimStyle.Render("history ") + titleStyle.Render(historyRanges[m.rangeIndex].label) + "  " + dimStyle.Render("[ / ]") + "\n\n"
 	common := statStrip(s)
@@ -1102,6 +1226,8 @@ func (m Model) detailView() string {
 		body = m.devtoolsView()
 	case 10:
 		body = m.orchestratorView()
+	case tabCIP:
+		body = m.cipView()
 	}
 	if m.detail && m.detailTab != 7 && m.desktopClear != "" {
 		body = m.desktopClear + body
@@ -1283,6 +1409,57 @@ func appendTail(tail []string, line string, cap int) []string {
 // A person watching the tab wants the tail to move; a person on another tab
 // wants their bandwidth and the daemon's CPU back. So the rate follows the
 // focus rather than being one compromise between the two.
+// cipView draws the CIP tab: the daemon state, the newest pipeline runs,
+// and the disk each pipeline occupies. A failed read shows the reason and
+// nothing else, because an empty panel reads as a healthy daemon.
+func (m Model) cipView() string {
+	snap := m.cip
+	if snap.Error != "" {
+		return "  " + titleStyle.Render("CIP PIPELINES") + "\n\n  " + errStyle.Render("unavailable: "+snap.Error) + "\n"
+	}
+	health := okStyle.Bold(true).Render("HEALTHY")
+	if !snap.Healthy {
+		health = errStyle.Bold(true).Render("DEGRADED")
+	}
+	summary := fmt.Sprintf("%s  %s  •  %s running  •  %s failed  •  %d success",
+		titleStyle.Render("CIP PIPELINES"), health,
+		warnStyle.Render(fmt.Sprintf("%d", snap.Running)),
+		errStyle.Render(fmt.Sprintf("%d", snap.Failed)), snap.Succeeded)
+	out := lipgloss.NewStyle().MarginLeft(2).Border(lipgloss.RoundedBorder()).BorderForeground(panel).Padding(0, 1).Render(summary) + "\n\n"
+	contentWidth := max(70, m.width-4)
+	// Measure every duration against the time of the snapshot, so each row
+	// on one screen shares one clock.
+	now := snap.At
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if len(snap.Runs) == 0 {
+		out += dimStyle.Render("  No pipeline run exists yet.") + "\n\n"
+	} else {
+		out += "  " + titleStyle.Render("RECENT RUNS") + "\n\n"
+		out += dimStyle.Render(truncate(fmt.Sprintf("  %-5s %-24s %-8s %-14s %s", "RUN", "REPO", "STATUS", "TOOK", "BRANCH"), contentWidth)) + "\n"
+		for _, run := range snap.Runs {
+			// Style the whole row only after it is cut to width, because
+			// the style codes would otherwise count against the width.
+			row := truncate("  "+run.Line(now), contentWidth)
+			switch run.Status {
+			case "failed":
+				out += errStyle.Render(row) + "\n"
+			case "running":
+				out += warnStyle.Render(row) + "\n"
+			default:
+				out += row + "\n"
+			}
+		}
+		out += "\n"
+	}
+	out += "  " + titleStyle.Render("STORAGE") + "\n\n"
+	for _, line := range snap.StorageLines() {
+		out += truncate("  "+line, contentWidth) + "\n"
+	}
+	return out
+}
+
 func orchestratorRefresh(focused bool) time.Duration {
 	if focused {
 		return time.Second
