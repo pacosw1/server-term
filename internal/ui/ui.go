@@ -97,6 +97,13 @@ type cipRunTickMsg time.Time
 type cipPromotionsMsg widget.CIPPromotionList
 type cipPromotionMsg widget.CIPPromotionDetail
 
+// cipActionMsg is the answer to a write. Exactly one of Message and Error
+// is set, so an outcome can never read as both a success and a failure.
+type cipActionMsg struct {
+	Message string
+	Error   string
+}
+
 // agentUsagePoint is one CPU/memory reading for one agent, kept in a small
 // ring buffer so the AGENTS tab can draw a live trend, the same way the
 // server list keeps a history of metrics.Sample.
@@ -153,11 +160,22 @@ type Model struct {
 	// cipSpecs caches the spec of each promotion. A spec is a snapshot
 	// taken when the promotion started, so it never changes and one read
 	// per promotion is enough.
-	cipSpecs      map[int]widget.CIPSpec
-	width, height int
-	collecting    bool
-	pending       int
-	lastRefresh   time.Time
+	cipSpecs map[int]widget.CIPSpec
+	// The CIP tab can write: it re-runs failed jobs, and it approves a
+	// gated stage. Both change a real pipeline, so both arm first and act
+	// only on a second, deliberate keypress.
+	cipJobSel        int
+	cipAction        string
+	cipActionArmed   bool
+	cipActionBusy    bool
+	cipActionMessage string
+	cipActionIsError bool
+	cipReasonInput   bool
+	cipReason        string
+	width, height    int
+	collecting       bool
+	pending          int
+	lastRefresh      time.Time
 }
 
 func New(cfg config.Config) Model {
@@ -500,6 +518,127 @@ func (m Model) cipFocusSpec() widget.CIPSpec {
 	return m.cipSpecs[entry.Promotion.ID]
 }
 
+// The two writes the CIP tab can perform.
+const (
+	cipActionRerun   = "rerun"
+	cipActionApprove = "approve"
+)
+
+// cipApprover is the name recorded against an approval. The daemon keeps an
+// audit trail, so the name must never be empty.
+func cipApprover() string {
+	for _, name := range []string{os.Getenv("USER"), os.Getenv("LOGNAME")} {
+		if name = strings.TrimSpace(name); name != "" {
+			return name
+		}
+	}
+	return "servterm"
+}
+
+// cipRerunTarget is the run to re-run, and the one job to re-run inside it.
+// An empty job means every failed job of the run.
+//
+// An open run re-runs the job under the cursor, because the reader points
+// at one job. A run row or a stage row re-runs every failed job, because
+// the reader points at the whole run.
+func (m Model) cipRerunTarget() (int, string, bool) {
+	if m.cipOpenID != 0 {
+		job := ""
+		if m.cipJobSel >= 0 && m.cipJobSel < len(m.cipDetail.Jobs) && m.cipDetail.Run.ID == m.cipOpenID {
+			job = m.cipDetail.Jobs[m.cipJobSel].Name
+		}
+		return m.cipOpenID, job, true
+	}
+	if m.cipOpenPromotionID != 0 {
+		stage, ok := m.cipSelectedStage()
+		if !ok || !stage.HasRun() {
+			return 0, "", false
+		}
+		return stage.RunID, "", true
+	}
+	run, ok := m.cipSelectedRun()
+	if !ok {
+		return 0, "", false
+	}
+	return run.ID, "", true
+}
+
+// cipApproveTarget is the stage an approval would act on: the stage under
+// the cursor inside an open promotion, or the stage that waits at a gate in
+// the promotion the reader points at.
+func (m Model) cipApproveTarget() (int, widget.CIPStage, bool) {
+	entry, ok := m.cipFocusPromotion()
+	if !ok {
+		return 0, widget.CIPStage{}, false
+	}
+	if m.cipOpenPromotionID != 0 {
+		stage, ok := m.cipSelectedStage()
+		if !ok {
+			return 0, widget.CIPStage{}, false
+		}
+		return entry.Promotion.ID, stage, true
+	}
+	for _, stage := range entry.Stages {
+		if stage.State == "gated" {
+			return entry.Promotion.ID, stage, true
+		}
+	}
+	return 0, widget.CIPStage{}, false
+}
+
+// rerunCIP asks the daemon to run the failed jobs again. This is a WRITE.
+// Only an armed and confirmed keypress may call it.
+func (m Model) rerunCIP(id int, job string) tea.Cmd {
+	provider := m.cipWidget()
+	if provider == nil || id == 0 {
+		return nil
+	}
+	p := *provider
+	return func() tea.Msg {
+		token, err := orchestratorToken(p)
+		if err != nil {
+			return cipActionMsg{Error: err.Error()}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		result := widget.RerunCIPRun(ctx, p, token, id, job)
+		if result.Error != "" {
+			return cipActionMsg{Error: result.Error}
+		}
+		return cipActionMsg{Message: result.Summary()}
+	}
+}
+
+// approveCIPStage approves one gated stage. This is a WRITE, and it lets a
+// release go ahead. Only an armed and confirmed keypress may call it.
+func (m Model) approveCIPStage(promotionID int, stage, reason string) tea.Cmd {
+	provider := m.cipWidget()
+	if provider == nil || promotionID == 0 || stage == "" {
+		return nil
+	}
+	p := *provider
+	return func() tea.Msg {
+		token, err := orchestratorToken(p)
+		if err != nil {
+			return cipActionMsg{Error: err.Error()}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		result := widget.ApproveCIPStage(ctx, p, token, promotionID, stage, cipApprover(), reason)
+		if result.Error != "" {
+			return cipActionMsg{Error: result.Error}
+		}
+		return cipActionMsg{Message: "approved " + stage}
+	}
+}
+
+// cipClearAction drops a part-finished action. The reader must never
+// confirm one thing and act on another.
+func (m *Model) cipClearAction() {
+	m.cipAction, m.cipActionArmed = "", false
+	m.cipReasonInput, m.cipReason = false, ""
+}
+
 // cipSelectedRun is the run under the selection bar in the run list.
 func (m Model) cipSelectedRun() (widget.CIPRun, bool) {
 	row, ok := m.cipSelectedRow()
@@ -789,12 +928,98 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// selection bar, enter opens the run below the graph, and esc
 		// closes it again. Every other key falls through to the general
 		// handler, so esc still leaves the detail view when no run is open.
+		// The reason prompt takes every key while it is open. Without
+		// that, typing a reason would drive the list under the reader.
+		if m.detail && m.detailTab == tabCIP && m.cipReasonInput {
+			switch msg.Type {
+			case tea.KeyEsc:
+				m.cipClearAction()
+				return m, nil
+			case tea.KeyBackspace:
+				if r := []rune(m.cipReason); len(r) > 0 {
+					m.cipReason = string(r[:len(r)-1])
+				}
+				return m, nil
+			case tea.KeyEnter:
+				if m.cipActionBusy {
+					return m, nil
+				}
+				// The first enter arms the approval. The second sends it.
+				if !m.cipActionArmed {
+					m.cipActionArmed = true
+					return m, nil
+				}
+				id, stage, ok := m.cipApproveTarget()
+				if !ok {
+					m.cipClearAction()
+					return m, nil
+				}
+				m.cipActionArmed, m.cipActionBusy = false, true
+				m.cipActionMessage = ""
+				return m, m.approveCIPStage(id, stage.Stage, m.cipReason)
+			case tea.KeyRunes, tea.KeySpace:
+				// A new character changes the request, so it must cancel a
+				// confirmation the reader already gave.
+				m.cipActionArmed = false
+				if msg.Type == tea.KeySpace {
+					m.cipReason += " "
+				} else {
+					m.cipReason += string(msg.Runes)
+				}
+				return m, nil
+			}
+			return m, nil
+		}
 		if m.detail && m.detailTab == tabCIP && m.cipWidgetFor(m.cursor) != nil {
 			switch msg.String() {
+			case "r":
+				// Re-run the failed work. This is a WRITE, so the first
+				// press only arms it.
+				if m.cipActionBusy {
+					return m, nil
+				}
+				id, job, ok := m.cipRerunTarget()
+				if !ok {
+					m.cipClearAction()
+					m.cipActionIsError = true
+					m.cipActionMessage = "select a run or a stage that has a run"
+					return m, nil
+				}
+				if m.cipActionArmed && m.cipAction == cipActionRerun {
+					m.cipActionArmed, m.cipActionBusy = false, true
+					m.cipActionMessage = ""
+					return m, m.rerunCIP(id, job)
+				}
+				m.cipAction, m.cipActionArmed = cipActionRerun, true
+				m.cipActionIsError, m.cipActionMessage = false, ""
+				return m, nil
+			case "a":
+				// Approve a gated stage. This lets a release go ahead, so
+				// it asks for a reason and then for a confirmation.
+				if m.cipActionBusy {
+					return m, nil
+				}
+				_, stage, ok := m.cipApproveTarget()
+				if !ok || stage.State != "gated" {
+					m.cipClearAction()
+					m.cipActionIsError = true
+					m.cipActionMessage = "only a gated stage can be approved"
+					return m, nil
+				}
+				m.cipAction, m.cipReasonInput = cipActionApprove, true
+				m.cipActionArmed, m.cipReason = false, ""
+				m.cipActionIsError, m.cipActionMessage = false, ""
+				return m, nil
 			case "up", "k":
-				// An open run shows no list, so the key scrolls instead.
+				// A move points the reader at something else, so it drops
+				// any armed action. A confirmation must never apply to a
+				// target the reader left.
+				m.cipClearAction()
 				if m.cipOpenID != 0 {
-					break
+					if m.cipJobSel > 0 {
+						m.cipJobSel--
+					}
+					return m, nil
 				}
 				if m.cipOpenPromotionID != 0 {
 					if m.cipStageSel > 0 {
@@ -809,8 +1034,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			case "down", "j":
+				m.cipClearAction()
 				if m.cipOpenID != 0 {
-					break
+					if m.cipJobSel < len(m.cipDetail.Jobs)-1 {
+						m.cipJobSel++
+					}
+					return m, nil
 				}
 				if m.cipOpenPromotionID != 0 {
 					if entry, ok := m.cipFocusPromotion(); ok && m.cipStageSel < len(entry.Stages)-1 {
@@ -856,7 +1085,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.detailScroll = 0
 				return m, tea.Batch(m.fetchCIPFocusRun(), m.nextCIPRunTick())
 			case "esc":
-				// Escape walks back one level at a time: the run, then the
+				// Escape drops a part-finished action first, so a reader
+				// can back out of a write without leaving the view.
+				if m.cipAction != "" || m.cipActionArmed {
+					m.cipClearAction()
+					return m, nil
+				}
+				// Then it walks back one level at a time: the run, then the
 				// promotion, then the detail view itself.
 				if m.cipOpenID != 0 {
 					m.cipOpenID = 0
@@ -1354,8 +1589,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cipSpecs[detail.Promotion.ID] = detail.Spec
 		}
 		return m, nil
+	case cipActionMsg:
+		m.cipActionBusy, m.cipActionArmed = false, false
+		m.cipReasonInput, m.cipReason = false, ""
+		m.cipAction = ""
+		if msg.Error != "" {
+			m.cipActionIsError, m.cipActionMessage = true, msg.Error
+			return m, nil
+		}
+		m.cipActionIsError, m.cipActionMessage = false, msg.Message
+		// Read the new state at once, so the reader sees what changed
+		// instead of waiting for the next tick.
+		return m, tea.Batch(m.fetchCIP(), m.fetchCIPPromotions(), m.fetchCIPRun(m.cipFocusRunID()))
 	case cipRunMsg:
 		m.cipDetail = widget.CIPRunDetail(msg)
+		if m.cipJobSel >= len(m.cipDetail.Jobs) {
+			m.cipJobSel = max(0, len(m.cipDetail.Jobs)-1)
+		}
 		return m, m.nextCIPRunTick()
 	case cipRunTickMsg:
 		return m, m.fetchCIPRun(m.cipFocusRunID())
@@ -1815,6 +2065,7 @@ func (m Model) cipView() string {
 	// browses the list or looks at one run, so the pipeline never leaves
 	// the screen.
 	out += m.cipGraphPane(contentWidth) + "\n"
+	out += m.cipActionPane(contentWidth)
 	if m.cipOpenID != 0 {
 		return out + m.cipRunPane(contentWidth)
 	}
@@ -1822,7 +2073,7 @@ func (m Model) cipView() string {
 		return out + m.cipStagePane(contentWidth)
 	}
 	if len(m.cipPromotions.Promotions) > 0 {
-		out += "  " + titleStyle.Render("PROMOTIONS") + "  " + dimStyle.Render("↑↓ select  enter open  click opens one") + "\n\n"
+		out += "  " + titleStyle.Render("PROMOTIONS") + "  " + dimStyle.Render("↑↓ select  enter open  a approve a gated stage  click opens one") + "\n\n"
 		out += dimStyle.Render(truncate(fmt.Sprintf("   %-5s %-24s %-8s %-18s %s", "ID", "REPO", "STATE", "BRANCH", "STAGES"), contentWidth)) + "\n"
 		for i, entry := range m.cipPromotions.Promotions {
 			row := truncate(" "+m.cipSelectMark(i)+cipPromotionLine(entry), contentWidth)
@@ -1833,7 +2084,7 @@ func (m Model) cipView() string {
 	if len(snap.Runs) == 0 {
 		out += dimStyle.Render("  No pipeline run exists yet.") + "\n\n"
 	} else {
-		out += "  " + titleStyle.Render("RECENT RUNS") + "  " + dimStyle.Render("↑↓ select  enter open  click opens a run") + "\n\n"
+		out += "  " + titleStyle.Render("RECENT RUNS") + "  " + dimStyle.Render("↑↓ select  enter open  r re-run failed jobs  click opens a run") + "\n\n"
 		out += dimStyle.Render(truncate(fmt.Sprintf("   %-5s %-24s %-8s %-14s %s", "RUN", "REPO", "STATUS", "TOOK", "BRANCH"), contentWidth)) + "\n"
 		// The runs follow the promotions in one selectable list, so a run
 		// row sits at its own index plus the number of promotions.
@@ -1853,10 +2104,59 @@ func (m Model) cipView() string {
 	return out
 }
 
+// cipActionPane shows the state of a write: what it will do, how to
+// confirm it, and what the daemon answered. An outcome is never silent,
+// because a quiet no-op is the failure this widget must avoid.
+func (m Model) cipActionPane(width int) string {
+	out := ""
+	switch {
+	case m.cipActionBusy:
+		out += "  " + warnStyle.Render("◌ working…") + "\n"
+	case m.cipReasonInput:
+		id, stage, ok := m.cipApproveTarget()
+		name := stage.Stage
+		if !ok {
+			name = "this stage"
+		}
+		out += "  " + titleStyle.Render(fmt.Sprintf("APPROVE %s of P%d", name, id)) + "\n"
+		out += "  " + dimStyle.Render("reason: ") + m.cipReason + lipgloss.NewStyle().Foreground(cyan).Render("▏") + "\n"
+		if m.cipActionArmed {
+			out += "  " + warnStyle.Render("Press Enter again to approve. Esc cancels.") + "\n"
+		} else {
+			out += "  " + dimStyle.Render("Enter arms the approval. Esc cancels.") + "\n"
+		}
+	case m.cipActionArmed && m.cipAction == cipActionRerun:
+		id, job, ok := m.cipRerunTarget()
+		what := fmt.Sprintf("every failed job of run #%d", id)
+		if job != "" {
+			what = fmt.Sprintf("the job %s of run #%d", job, id)
+		}
+		if ok {
+			out += "  " + warnStyle.Render("Re-run "+what+"? Press r again. Esc cancels.") + "\n"
+		}
+	}
+	if m.cipActionMessage != "" {
+		style := okStyle
+		if m.cipActionIsError {
+			style = errStyle
+		}
+		out += "  " + style.Render(clampLine(m.cipActionMessage, width-2)) + "\n"
+	}
+	if out != "" {
+		out += "\n"
+	}
+	return out
+}
+
 // cipSelectMark is the pointer in front of the selected row. The bar must
 // be visible without color, so the row carries a mark as well as a style.
 func (m Model) cipSelectMark(index int) string {
-	if index == m.cipSel {
+	return m.cipSelectMarkAt(index, m.cipSel)
+}
+
+// cipSelectMarkAt marks the selected row of any of the CIP lists.
+func (m Model) cipSelectMarkAt(index, selected int) string {
+	if index == selected {
 		return "▸ "
 	}
 	return "  "
@@ -1909,7 +2209,7 @@ func cipPromotionLine(entry widget.CIPPromotionEntry) string {
 // cipStagePane replaces the list with the stages of the open promotion.
 func (m Model) cipStagePane(width int) string {
 	out := "  " + titleStyle.Render(fmt.Sprintf("STAGES OF P%d", m.cipOpenPromotionID)) + "  " +
-		dimStyle.Render("↑↓ select  enter opens the stage run  esc back") + "\n\n"
+		dimStyle.Render("↑↓ select  enter opens the run  a approve  r re-run  esc back") + "\n\n"
 	entry, ok := m.cipFocusPromotion()
 	if !ok {
 		return out + dimStyle.Render("  This promotion is gone.") + "\n"
@@ -1925,8 +2225,8 @@ func (m Model) cipStagePane(width int) string {
 		if stage.HasRun() {
 			run = fmt.Sprintf("#%d", stage.RunID)
 		}
-		row := fmt.Sprintf(" %s%-16s %-11s %-8s %s", m.cipSelectMark(i), truncate(stage.Stage, 16),
-			stage.State, run, cipStageNote(stage, spec, now))
+		row := fmt.Sprintf(" %s%-16s %-11s %-8s %s", m.cipSelectMarkAt(i, m.cipStageSel),
+			truncate(stage.Stage, 16), stage.State, run, cipStageNote(stage, spec, now))
 		out += cipListRowStyle(i == m.cipStageSel, stage.State).Render(clampLine(strings.TrimRight(row, " "), width)) + "\n"
 	}
 	return out
@@ -1975,7 +2275,7 @@ func (m Model) cipJobGraphPane(width int) string {
 // cipRunPane replaces the run list with the jobs of the open run.
 func (m Model) cipRunPane(width int) string {
 	detail := m.cipDetail
-	out := "  " + titleStyle.Render(fmt.Sprintf("RUN #%d", m.cipOpenID)) + "  " + dimStyle.Render("esc back to the run list") + "\n\n"
+	out := "  " + titleStyle.Render(fmt.Sprintf("RUN #%d", m.cipOpenID)) + "  " + dimStyle.Render("↑↓ select a job  r re-runs it  esc back") + "\n\n"
 	if detail.Error != "" {
 		return out + "  " + errStyle.Render("unavailable: "+detail.Error) + "\n"
 	}
@@ -1990,12 +2290,12 @@ func (m Model) cipRunPane(width int) string {
 	if len(detail.Jobs) == 0 {
 		return out + dimStyle.Render("  No job exists for this run yet.") + "\n"
 	}
-	out += dimStyle.Render(truncate(fmt.Sprintf("   %-18s %-9s %-7s %-12s %s", "JOB", "STATUS", "STEPS", "TOOK", "NEEDS"), width)) + "\n"
-	for _, job := range detail.Jobs {
-		row := fmt.Sprintf(" %s %-18s %-9s %-7s %-12s %s",
+	out += dimStyle.Render(truncate(fmt.Sprintf("    %-18s %-9s %-7s %-12s %s", "JOB", "STATUS", "STEPS", "TOOK", "NEEDS"), width)) + "\n"
+	for i, job := range detail.Jobs {
+		row := fmt.Sprintf(" %s%s %-18s %-9s %-7s %-12s %s", m.cipSelectMarkAt(i, m.cipJobSel),
 			cipJobMark(job.Status, m.cipFrame, static), truncate(job.Name, 18), job.Status,
 			cipJobSteps(job), cipJobTime(job, now), strings.Join(job.Needs, ", "))
-		out += clampLine(strings.TrimRight(row, " "), width) + "\n"
+		out += cipListRowStyle(i == m.cipJobSel, job.Status).Render(clampLine(strings.TrimRight(row, " "), width)) + "\n"
 	}
 	return out
 }

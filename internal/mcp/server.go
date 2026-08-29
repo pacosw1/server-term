@@ -101,7 +101,7 @@ func tools() []tool {
 		{Name: "servterm_desktop_status", Description: "Read authenticated desktop-agent capability status.", InputSchema: schema(map[string]any{"desktop": map[string]any{"type": "string"}}, []string{"desktop"})},
 		{Name: "servterm_nvr_status", Description: "Read a configured read-only NVR widget snapshot.", InputSchema: schema(map[string]any{"widget": map[string]any{"type": "string"}}, []string{"widget"})},
 		{Name: "servterm_orchestrator_status", Description: "Read a configured read-only agent orchestrator snapshot; never starts, stops, or steers agents.", InputSchema: schema(map[string]any{"widget": map[string]any{"type": "string"}}, []string{"widget"})},
-		{Name: "servterm_cip_status", Description: "Read a configured read-only cip CI/CD snapshot of pipeline runs and storage; never starts, stops, or cancels a run.", InputSchema: schema(map[string]any{"widget": map[string]any{"type": "string"}}, []string{"widget"})},
+		{Name: "servterm_cip_status", Description: "Read a configured cip CI/CD snapshot of pipeline runs and storage. This tool only reads: it never re-runs a job, approves a stage, or cancels a run. Those actions exist in the servterm TUI, where a person confirms them.", InputSchema: schema(map[string]any{"widget": map[string]any{"type": "string"}}, []string{"widget"})},
 	}
 }
 

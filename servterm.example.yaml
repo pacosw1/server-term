@@ -27,8 +27,9 @@ servers:
     # agent_url: http://100.64.0.10:7843
     # token_file: ~/.config/servterm/tokens/example-production
 
-# Read-only external status providers, shown as extra tabs in a server's
-# detail view. See README.md for the full list of provider types.
+# External status providers, shown as extra tabs in a server's detail
+# view. They mostly read. The orchestrator and cip widgets can also act:
+# see README.md for the full list of provider types and their actions.
 # widgets:
 #   - name: pitsa-agents
 #     type: orchestrator
@@ -38,8 +39,9 @@ servers:
 #     # endpoint host to a server address. Set host when they differ:
 #     # host: 100.93.34.43
 #
-#   # The cip widget reads the CI/CD daemon. It shows recent pipeline runs and
-#   # the disk each pipeline occupies. It never starts or cancels a run.
+#   # The cip widget shows the promotion flow, the pipeline runs, and the
+#   # disk each pipeline occupies. In the TUI it can also re-run failed jobs
+#   # (r) and approve a gated stage (a). Both ask for a confirmation first.
 #   - name: cip-pipelines
 #     type: cip
 #     endpoint: http://100.93.34.43:8080

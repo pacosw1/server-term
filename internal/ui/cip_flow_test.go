@@ -296,6 +296,23 @@ func TestEnterOnAStageWithNoRunDoesNothing(t *testing.T) {
 	}
 }
 
+// The pointer in the stage list must follow the stage cursor, not the
+// cursor of the outer list, or it points at the wrong stage.
+func TestTheStagePointerFollowsTheStageSelection(t *testing.T) {
+	m := cipPromoModel()
+	m.cipOpenPromotionID, m.cipStageSel, m.cipSel = 12, 2, 0
+	for _, line := range strings.Split(m.cipStagePane(96), "\n") {
+		if !strings.Contains(line, "▸") {
+			continue
+		}
+		if !strings.Contains(line, "release") {
+			t.Errorf("the pointer is on %q, want the selected release stage", strings.TrimSpace(line))
+		}
+		return
+	}
+	t.Error("the stage list shows no pointer")
+}
+
 func TestArrowKeysMoveTheStageSelectionWhenAPromotionIsOpen(t *testing.T) {
 	m := cipPromoModel()
 	m.cipOpenPromotionID = 12

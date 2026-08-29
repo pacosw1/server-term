@@ -45,8 +45,11 @@ type Server struct {
 	TokenFile    string   `yaml:"token_file,omitempty"`
 }
 
-// Widget is a read-only external provider. Supported types are nvr,
-// orchestrator, and cip.
+// Widget is an external status provider. Supported types are nvr,
+// orchestrator, and cip. Reads are the whole of the nvr widget. The
+// orchestrator widget can also set the daemon run mode, and the cip widget
+// can re-run failed jobs and approve a gated stage. The TUI confirms every
+// one of those writes with the reader first.
 type Widget struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
