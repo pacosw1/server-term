@@ -92,6 +92,10 @@ type orchestratorTickMsg time.Time
 type orchestratorModeMsg widget.OrchestratorModeResult
 type cipMsg widget.CIPSnapshot
 type cipTickMsg time.Time
+type cipRunMsg widget.CIPRunDetail
+type cipRunTickMsg time.Time
+type cipPromotionsMsg widget.CIPPromotionList
+type cipPromotionMsg widget.CIPPromotionDetail
 
 // agentUsagePoint is one CPU/memory reading for one agent, kept in a small
 // ring buffer so the AGENTS tab can draw a live trend, the same way the
@@ -139,10 +143,21 @@ type Model struct {
 	orchestratorModeMessage        string
 	orchestratorModeMessageIsError bool
 	cip                            widget.CIPSnapshot
-	width, height                  int
-	collecting                     bool
-	pending                        int
-	lastRefresh                    time.Time
+	cipSel                         int
+	cipOpenID                      int
+	cipDetail                      widget.CIPRunDetail
+	cipFrame                       int
+	cipPromotions                  widget.CIPPromotionList
+	cipOpenPromotionID             int
+	cipStageSel                    int
+	// cipSpecs caches the spec of each promotion. A spec is a snapshot
+	// taken when the promotion started, so it never changes and one read
+	// per promotion is enough.
+	cipSpecs      map[int]widget.CIPSpec
+	width, height int
+	collecting    bool
+	pending       int
+	lastRefresh   time.Time
 }
 
 func New(cfg config.Config) Model {
@@ -152,7 +167,7 @@ func New(cfg config.Config) Model {
 			n++
 		}
 	}
-	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopFrameRaw: map[int][]byte{}, desktopFrameSize: map[int]image.Point{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, devtoolVersions: map[string]string{}, agentUsage: map[int][]agentUsagePoint{}, agentTail: map[int][]string{}, collecting: n > 0, pending: n}
+	return Model{cfg: cfg, collector: collector.Collector{SSH: cfg.SSH}, samples: make([]metrics.Sample, len(cfg.Servers)), history: make([][]metrics.Sample, len(cfg.Servers)), displayCPU: make([]float64, len(cfg.Servers)), displayCores: make([][]float64, len(cfg.Servers)), streamBuffers: make([][]metrics.Sample, len(cfg.Servers)), desktopFrames: map[int]string{}, desktopFrameRaw: map[int][]byte{}, desktopFrameSize: map[int]image.Point{}, desktopErrors: map[int]string{}, desktopStreams: map[int]*desktopclient.Stream{}, devtoolStatus: map[string]bool{}, devtoolVersions: map[string]string{}, agentUsage: map[int][]agentUsagePoint{}, agentTail: map[int][]string{}, cipSpecs: map[int]widget.CIPSpec{}, collecting: n > 0, pending: n}
 }
 func (m Model) Init() tea.Cmd {
 	cmds := append(m.collectAll(), m.nextFrame())
@@ -160,7 +175,7 @@ func (m Model) Init() tea.Cmd {
 		cmds = append(cmds, m.fetchOrchestrator(), m.nextOrchestratorTick())
 	}
 	if m.cipWidget() != nil {
-		cmds = append(cmds, m.fetchCIP(), m.nextCIPTick())
+		cmds = append(cmds, m.fetchCIP(), m.fetchCIPPromotions(), m.nextCIPTick())
 	}
 	return tea.Batch(cmds...)
 }
@@ -273,6 +288,10 @@ func (m *Model) clampDetailTab() {
 	if m.detailTab == tabCIP && m.cipWidgetFor(m.cursor) == nil {
 		m.detailTab = 0
 		m.detailScroll = 0
+		// Drop the open run and promotion too. Work of another server's
+		// daemon must not stay open behind the tab.
+		m.cipOpenID, m.cipSel = 0, 0
+		m.cipOpenPromotionID, m.cipStageSel = 0, 0
 	}
 }
 
@@ -351,6 +370,210 @@ func (m Model) fetchCIP() tea.Cmd {
 		defer cancel()
 		return cipMsg(widget.FetchCIP(ctx, p, token))
 	}
+}
+
+// cipRowKind tells a row of the CIP list apart. The list shows the
+// promotions first, then the plain runs.
+type cipRowKind int
+
+const (
+	cipRowPromotion cipRowKind = iota
+	cipRowRun
+)
+
+// cipRow is one selectable row of the CIP list. Index points into the
+// promotions or into the runs, depending on Kind.
+type cipRow struct {
+	Kind  cipRowKind
+	Index int
+}
+
+// cipRows is the whole selectable list: every promotion, then every run. A
+// daemon with no promotion gives exactly the run list it always gave.
+func (m Model) cipRows() []cipRow {
+	rows := make([]cipRow, 0, len(m.cipPromotions.Promotions)+len(m.cip.Runs))
+	for i := range m.cipPromotions.Promotions {
+		rows = append(rows, cipRow{Kind: cipRowPromotion, Index: i})
+	}
+	for i := range m.cip.Runs {
+		rows = append(rows, cipRow{Kind: cipRowRun, Index: i})
+	}
+	return rows
+}
+
+// cipSelectedRow is the row under the selection bar.
+func (m Model) cipSelectedRow() (cipRow, bool) {
+	rows := m.cipRows()
+	if m.cipSel < 0 || m.cipSel >= len(rows) {
+		return cipRow{}, false
+	}
+	return rows[m.cipSel], true
+}
+
+// cipFocusPromotion is the promotion the flow draws: the open one, or the
+// selected one while the list is shown.
+func (m Model) cipFocusPromotion() (widget.CIPPromotionEntry, bool) {
+	if m.cipOpenPromotionID != 0 {
+		for _, entry := range m.cipPromotions.Promotions {
+			if entry.Promotion.ID == m.cipOpenPromotionID {
+				return entry, true
+			}
+		}
+		return widget.CIPPromotionEntry{}, false
+	}
+	row, ok := m.cipSelectedRow()
+	if !ok || row.Kind != cipRowPromotion || row.Index >= len(m.cipPromotions.Promotions) {
+		return widget.CIPPromotionEntry{}, false
+	}
+	return m.cipPromotions.Promotions[row.Index], true
+}
+
+// cipSelectedStage is the stage under the selection bar inside an open
+// promotion.
+func (m Model) cipSelectedStage() (widget.CIPStage, bool) {
+	entry, ok := m.cipFocusPromotion()
+	if !ok || m.cipStageSel < 0 || m.cipStageSel >= len(entry.Stages) {
+		return widget.CIPStage{}, false
+	}
+	return entry.Stages[m.cipStageSel], true
+}
+
+// fetchCIPPromotions reads the promotion list on the normal cadence. The
+// list alone carries every stage state, so the flow needs no other read.
+func (m Model) fetchCIPPromotions() tea.Cmd {
+	provider := m.cipWidget()
+	if provider == nil {
+		return nil
+	}
+	p := *provider
+	return func() tea.Msg {
+		token, err := orchestratorToken(p)
+		if err != nil {
+			return cipPromotionsMsg(widget.CIPPromotionList{Name: p.Name, At: time.Now(), Error: err.Error()})
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return cipPromotionsMsg(widget.FetchCIPPromotions(ctx, p, token))
+	}
+}
+
+// fetchCIPPromotion reads one promotion, only to get its spec.
+func (m Model) fetchCIPPromotion(id int) tea.Cmd {
+	provider := m.cipWidget()
+	if provider == nil || id == 0 {
+		return nil
+	}
+	p := *provider
+	return func() tea.Msg {
+		token, err := orchestratorToken(p)
+		if err != nil {
+			return cipPromotionMsg(widget.CIPPromotionDetail{Name: p.Name, At: time.Now(),
+				Promotion: widget.CIPPromotion{ID: id}, Error: err.Error()})
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return cipPromotionMsg(widget.FetchCIPPromotion(ctx, p, token, id))
+	}
+}
+
+// fetchCIPFocusSpec reads the spec of the promotion the reader points at,
+// and only when the cache does not hold it. A spec never changes, so one
+// read per promotion is enough for the whole session.
+func (m Model) fetchCIPFocusSpec() tea.Cmd {
+	entry, ok := m.cipFocusPromotion()
+	if !ok || entry.Promotion.ID == 0 {
+		return nil
+	}
+	if _, cached := m.cipSpecs[entry.Promotion.ID]; cached {
+		return nil
+	}
+	return m.fetchCIPPromotion(entry.Promotion.ID)
+}
+
+// cipFocusSpec is the cached spec of the promotion in view. An empty spec
+// is not a fault: the flow still lists every stage, without the edges.
+func (m Model) cipFocusSpec() widget.CIPSpec {
+	entry, ok := m.cipFocusPromotion()
+	if !ok {
+		return widget.CIPSpec{}
+	}
+	return m.cipSpecs[entry.Promotion.ID]
+}
+
+// cipSelectedRun is the run under the selection bar in the run list.
+func (m Model) cipSelectedRun() (widget.CIPRun, bool) {
+	row, ok := m.cipSelectedRow()
+	if !ok || row.Kind != cipRowRun || row.Index >= len(m.cip.Runs) {
+		return widget.CIPRun{}, false
+	}
+	return m.cip.Runs[row.Index], true
+}
+
+// cipFocusRunID is the run the graph draws: the open run, or the selected
+// run while the list is shown. It is 0 when the list has no run.
+func (m Model) cipFocusRunID() int {
+	if m.cipOpenID != 0 {
+		return m.cipOpenID
+	}
+	if run, ok := m.cipSelectedRun(); ok {
+		return run.ID
+	}
+	return 0
+}
+
+// fetchCIPRun does one authenticated read of the jobs of one run.
+func (m Model) fetchCIPRun(id int) tea.Cmd {
+	provider := m.cipWidget()
+	if provider == nil || id == 0 {
+		return nil
+	}
+	p := *provider
+	return func() tea.Msg {
+		token, err := orchestratorToken(p)
+		if err != nil {
+			return cipRunMsg(widget.CIPRunDetail{Name: p.Name, At: time.Now(),
+				Run: widget.CIPRun{ID: id}, Error: err.Error()})
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return cipRunMsg(widget.FetchCIPRun(ctx, p, token, id))
+	}
+}
+
+// fetchCIPFocusRun reads the jobs of the run the reader points at, but only
+// when the widget does not already hold them. This is what keeps the reads
+// down while the reader moves the selection bar over old runs.
+func (m Model) fetchCIPFocusRun() tea.Cmd {
+	id := m.cipFocusRunID()
+	if id == 0 || m.cipDetail.Run.ID == id {
+		return nil
+	}
+	return m.fetchCIPRun(id)
+}
+
+// nextCIPRunTick schedules the next read of the open graph. It returns nil
+// for a run that already ended, because a finished run never changes again
+// and polling it would only waste reads.
+func (m Model) nextCIPRunTick() tea.Cmd {
+	id := m.cipFocusRunID()
+	if id == 0 || m.cipDetail.Run.ID != id || m.cipDetail.Run.Status != "running" {
+		return nil
+	}
+	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg { return cipRunTickMsg(t) })
+}
+
+// cipRunIDAtRow reads the run id from one row of the screen. It renders the
+// current view and reads the row the mouse hit, so the hit test always
+// agrees with what the reader sees.
+func (m Model) cipRunIDAtRow(y int) (int, bool) {
+	if y < 0 {
+		return 0, false
+	}
+	lines := strings.Split(m.View(), "\n")
+	if y >= len(lines) {
+		return 0, false
+	}
+	return cipRunIDAtLine(lines[y])
 }
 
 // nextCIPTick schedules the next cip refresh.
@@ -561,6 +784,91 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.sendDesktopClipboard(m.cursor)
 			}
 			return m, m.sendDesktopKey(m.cursor, msg.String())
+		}
+		// The CIP tab drives its own run list: up and down move the
+		// selection bar, enter opens the run below the graph, and esc
+		// closes it again. Every other key falls through to the general
+		// handler, so esc still leaves the detail view when no run is open.
+		if m.detail && m.detailTab == tabCIP && m.cipWidgetFor(m.cursor) != nil {
+			switch msg.String() {
+			case "up", "k":
+				// An open run shows no list, so the key scrolls instead.
+				if m.cipOpenID != 0 {
+					break
+				}
+				if m.cipOpenPromotionID != 0 {
+					if m.cipStageSel > 0 {
+						m.cipStageSel--
+					}
+					return m, nil
+				}
+				if m.cipSel > 0 {
+					m.cipSel--
+					m.detailScroll = 0
+					return m, tea.Batch(m.fetchCIPFocusRun(), m.fetchCIPFocusSpec())
+				}
+				return m, nil
+			case "down", "j":
+				if m.cipOpenID != 0 {
+					break
+				}
+				if m.cipOpenPromotionID != 0 {
+					if entry, ok := m.cipFocusPromotion(); ok && m.cipStageSel < len(entry.Stages)-1 {
+						m.cipStageSel++
+					}
+					return m, nil
+				}
+				if m.cipSel < len(m.cipRows())-1 {
+					m.cipSel++
+					m.detailScroll = 0
+					return m, tea.Batch(m.fetchCIPFocusRun(), m.fetchCIPFocusSpec())
+				}
+				return m, nil
+			case "enter":
+				if m.cipOpenID != 0 {
+					return m, nil
+				}
+				// Inside a promotion, enter opens the run of the stage. A
+				// stage that never ran has no run to open.
+				if m.cipOpenPromotionID != 0 {
+					stage, ok := m.cipSelectedStage()
+					if !ok || !stage.HasRun() {
+						return m, nil
+					}
+					m.cipOpenID = stage.RunID
+					m.detailScroll = 0
+					return m, tea.Batch(m.fetchCIPFocusRun(), m.nextCIPRunTick())
+				}
+				row, ok := m.cipSelectedRow()
+				if !ok {
+					return m, nil
+				}
+				if row.Kind == cipRowPromotion {
+					m.cipOpenPromotionID = m.cipPromotions.Promotions[row.Index].Promotion.ID
+					m.cipStageSel, m.detailScroll = 0, 0
+					return m, m.fetchCIPFocusSpec()
+				}
+				run, ok := m.cipSelectedRun()
+				if !ok {
+					return m, nil
+				}
+				m.cipOpenID = run.ID
+				m.detailScroll = 0
+				return m, tea.Batch(m.fetchCIPFocusRun(), m.nextCIPRunTick())
+			case "esc":
+				// Escape walks back one level at a time: the run, then the
+				// promotion, then the detail view itself.
+				if m.cipOpenID != 0 {
+					m.cipOpenID = 0
+					m.detailScroll = 0
+					return m, m.fetchCIPFocusRun()
+				}
+				if m.cipOpenPromotionID != 0 {
+					m.cipOpenPromotionID, m.cipStageSel = 0, 0
+					m.detailScroll = 0
+					return m, m.fetchCIPFocusRun()
+				}
+			}
 		}
 		// The mode menu is a small modal on top of the AGENTS tab: while it
 		// is open, up/down/enter/esc drive the menu, not the agent list.
@@ -898,6 +1206,44 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.ssh.read()
 		}
 	case tea.MouseMsg:
+		// A click on a run row selects that run and opens it in one step.
+		// Two clicks cannot work here: opening a run redraws the graph
+		// above the list, so the rows move under the pointer between the
+		// two clicks. The esc key goes back.
+		if m.detail && m.detailTab == tabCIP && m.cipWidgetFor(m.cursor) != nil &&
+			msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+			lines := strings.Split(m.View(), "\n")
+			if msg.Y < 0 || msg.Y >= len(lines) {
+				return m, nil
+			}
+			line := lines[msg.Y]
+			// A promotion row opens the promotion and its stage flow.
+			if id, ok := cipPromotionIDAtLine(line); ok {
+				for i, entry := range m.cipPromotions.Promotions {
+					if entry.Promotion.ID != id {
+						continue
+					}
+					m.cipSel, m.cipOpenPromotionID = i, id
+					m.cipStageSel, m.detailScroll = 0, 0
+					return m, m.fetchCIPFocusSpec()
+				}
+				return m, nil
+			}
+			id, ok := cipRunIDAtLine(line)
+			if !ok {
+				return m, nil
+			}
+			rows := m.cipRows()
+			for i, row := range rows {
+				if row.Kind != cipRowRun || m.cip.Runs[row.Index].ID != id {
+					continue
+				}
+				m.cipSel, m.cipOpenID = i, id
+				m.detailScroll = 0
+				return m, tea.Batch(m.fetchCIPFocusRun(), m.nextCIPRunTick())
+			}
+			return m, nil
+		}
 		if m.detail && m.detailTab == 7 && msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonLeft || msg.Button == tea.MouseButtonRight) {
 			return m, m.sendDesktopClick(m.cursor, msg.X, msg.Y, msg.Button == tea.MouseButtonRight)
 		}
@@ -906,6 +1252,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.loadDesktop(msg.Index)
 		}
 	case frameMsg:
+		// One step per frame drives the pipeline spinner. The counter lives
+		// in the model, so a test can pin the animation to an exact frame.
+		m.cipFrame++
 		target := time.Now().Add(-time.Second)
 		for i, buf := range m.streamBuffers {
 			for len(buf) >= 2 && !buf[1].At.After(target) {
@@ -978,9 +1327,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.fetchOrchestrator(), m.nextOrchestratorTick())
 	case cipMsg:
 		m.cip = widget.CIPSnapshot(msg)
-		return m, nil
+		// The list can shrink between two reads, so keep the selection bar
+		// on a real run instead of past the end of the list.
+		if m.cipSel >= len(m.cip.Runs) {
+			m.cipSel = max(0, len(m.cip.Runs)-1)
+		}
+		return m, m.fetchCIPFocusRun()
 	case cipTickMsg:
-		return m, tea.Batch(m.fetchCIP(), m.nextCIPTick())
+		return m, tea.Batch(m.fetchCIP(), m.fetchCIPPromotions(), m.nextCIPTick())
+	case cipPromotionsMsg:
+		m.cipPromotions = widget.CIPPromotionList(msg)
+		if rows := len(m.cipRows()); m.cipSel >= rows {
+			m.cipSel = max(0, rows-1)
+		}
+		// Read the spec of the promotion in view only, and only once. The
+		// list itself already carries every stage state.
+		return m, m.fetchCIPFocusSpec()
+	case cipPromotionMsg:
+		detail := widget.CIPPromotionDetail(msg)
+		// Cache only a good answer. Caching a failed read would keep the
+		// flow without edges for the rest of the session.
+		if detail.Error == "" && detail.Promotion.ID != 0 {
+			if m.cipSpecs == nil {
+				m.cipSpecs = map[int]widget.CIPSpec{}
+			}
+			m.cipSpecs[detail.Promotion.ID] = detail.Spec
+		}
+		return m, nil
+	case cipRunMsg:
+		m.cipDetail = widget.CIPRunDetail(msg)
+		return m, m.nextCIPRunTick()
+	case cipRunTickMsg:
+		return m, m.fetchCIPRun(m.cipFocusRunID())
 	case tickMsg:
 		if m.collecting {
 			return m, nil
@@ -1433,29 +1811,191 @@ func (m Model) cipView() string {
 	if now.IsZero() {
 		now = time.Now()
 	}
+	// The graph is pinned at the top. It stays there whether the reader
+	// browses the list or looks at one run, so the pipeline never leaves
+	// the screen.
+	out += m.cipGraphPane(contentWidth) + "\n"
+	if m.cipOpenID != 0 {
+		return out + m.cipRunPane(contentWidth)
+	}
+	if m.cipOpenPromotionID != 0 {
+		return out + m.cipStagePane(contentWidth)
+	}
+	if len(m.cipPromotions.Promotions) > 0 {
+		out += "  " + titleStyle.Render("PROMOTIONS") + "  " + dimStyle.Render("↑↓ select  enter open  click opens one") + "\n\n"
+		out += dimStyle.Render(truncate(fmt.Sprintf("   %-5s %-24s %-8s %-18s %s", "ID", "REPO", "STATE", "BRANCH", "STAGES"), contentWidth)) + "\n"
+		for i, entry := range m.cipPromotions.Promotions {
+			row := truncate(" "+m.cipSelectMark(i)+cipPromotionLine(entry), contentWidth)
+			out += cipListRowStyle(i == m.cipSel, entry.Promotion.State).Render(row) + "\n"
+		}
+		out += "\n"
+	}
 	if len(snap.Runs) == 0 {
 		out += dimStyle.Render("  No pipeline run exists yet.") + "\n\n"
 	} else {
-		out += "  " + titleStyle.Render("RECENT RUNS") + "\n\n"
-		out += dimStyle.Render(truncate(fmt.Sprintf("  %-5s %-24s %-8s %-14s %s", "RUN", "REPO", "STATUS", "TOOK", "BRANCH"), contentWidth)) + "\n"
-		for _, run := range snap.Runs {
+		out += "  " + titleStyle.Render("RECENT RUNS") + "  " + dimStyle.Render("↑↓ select  enter open  click opens a run") + "\n\n"
+		out += dimStyle.Render(truncate(fmt.Sprintf("   %-5s %-24s %-8s %-14s %s", "RUN", "REPO", "STATUS", "TOOK", "BRANCH"), contentWidth)) + "\n"
+		// The runs follow the promotions in one selectable list, so a run
+		// row sits at its own index plus the number of promotions.
+		offset := len(m.cipPromotions.Promotions)
+		for i, run := range snap.Runs {
 			// Style the whole row only after it is cut to width, because
 			// the style codes would otherwise count against the width.
-			row := truncate("  "+run.Line(now), contentWidth)
-			switch run.Status {
-			case "failed":
-				out += errStyle.Render(row) + "\n"
-			case "running":
-				out += warnStyle.Render(row) + "\n"
-			default:
-				out += row + "\n"
-			}
+			row := truncate(" "+m.cipSelectMark(offset+i)+run.Line(now), contentWidth)
+			out += cipListRowStyle(offset+i == m.cipSel, run.Status).Render(row) + "\n"
 		}
 		out += "\n"
 	}
 	out += "  " + titleStyle.Render("STORAGE") + "\n\n"
 	for _, line := range snap.StorageLines() {
 		out += truncate("  "+line, contentWidth) + "\n"
+	}
+	return out
+}
+
+// cipSelectMark is the pointer in front of the selected row. The bar must
+// be visible without color, so the row carries a mark as well as a style.
+func (m Model) cipSelectMark(index int) string {
+	if index == m.cipSel {
+		return "▸ "
+	}
+	return "  "
+}
+
+// cipListRowStyle colors one row of the CIP list. The selected row wins
+// over the state color, so the reader never loses the selection bar.
+func cipListRowStyle(selected bool, state string) lipgloss.Style {
+	if selected {
+		return lipgloss.NewStyle().Bold(true).Foreground(cyan)
+	}
+	switch state {
+	case "failed":
+		return errStyle
+	case "running", "active":
+		return warnStyle
+	default:
+		return lipgloss.NewStyle()
+	}
+}
+
+// cipPromotionLine is one row of the promotion list. It starts with "P"
+// and the id, which is how a mouse click finds the promotion again.
+func cipPromotionLine(entry widget.CIPPromotionEntry) string {
+	p := entry.Promotion
+	where := p.Branch
+	if sha := p.ShortSHA(); sha != "" {
+		where += "@" + sha
+	}
+	// Name the stage that needs attention, because that is why a reader
+	// looks at a promotion at all.
+	note := fmt.Sprintf("%d stages", len(entry.Stages))
+	for _, stage := range entry.Stages {
+		if stage.State == "gated" {
+			note = cipGatedMark + " " + stage.Stage
+			break
+		}
+		if stage.State == "running" {
+			note = "▶ " + stage.Stage
+			break
+		}
+		if stage.State == "failed" {
+			note = "✗ " + stage.Stage
+			break
+		}
+	}
+	return fmt.Sprintf("P%-4d %-24s %-8s %-18s %s", p.ID, p.Repo, p.State, where, note)
+}
+
+// cipStagePane replaces the list with the stages of the open promotion.
+func (m Model) cipStagePane(width int) string {
+	out := "  " + titleStyle.Render(fmt.Sprintf("STAGES OF P%d", m.cipOpenPromotionID)) + "  " +
+		dimStyle.Render("↑↓ select  enter opens the stage run  esc back") + "\n\n"
+	entry, ok := m.cipFocusPromotion()
+	if !ok {
+		return out + dimStyle.Render("  This promotion is gone.") + "\n"
+	}
+	now := m.cipPromotions.At
+	if now.IsZero() {
+		now = time.Now()
+	}
+	spec := m.cipFocusSpec()
+	out += dimStyle.Render(truncate(fmt.Sprintf("   %-16s %-11s %-8s %s", "STAGE", "STATE", "RUN", "WAITING FOR"), width)) + "\n"
+	for i, stage := range entry.Stages {
+		run := "—"
+		if stage.HasRun() {
+			run = fmt.Sprintf("#%d", stage.RunID)
+		}
+		row := fmt.Sprintf(" %s%-16s %-11s %-8s %s", m.cipSelectMark(i), truncate(stage.Stage, 16),
+			stage.State, run, cipStageNote(stage, spec, now))
+		out += cipListRowStyle(i == m.cipStageSel, stage.State).Render(clampLine(strings.TrimRight(row, " "), width)) + "\n"
+	}
+	return out
+}
+
+// cipGraphPane draws the pinned pipeline graph for the run the reader
+// points at. It waits rather than draw the jobs of another run, because a
+// graph under the wrong heading is worse than a short wait.
+func (m Model) cipGraphPane(width int) string {
+	// A failed promotion read shows as a banner above the pane. It must
+	// never hide the graph, and it must never pass unseen.
+	banner := ""
+	if m.cipPromotions.Error != "" {
+		banner = "  " + errStyle.Render("promotions unavailable: "+m.cipPromotions.Error) + "\n\n"
+	}
+	// While no run is open, a promotion in view draws the stage flow. That
+	// flow is the shape of the pipeline; the job graph is one stage of it.
+	if m.cipOpenID == 0 {
+		if entry, ok := m.cipFocusPromotion(); ok {
+			now := m.cipPromotions.At
+			if now.IsZero() {
+				now = time.Now()
+			}
+			return banner + cipStageFlowView(entry, m.cipFocusSpec(), now, m.cipFrame, width)
+		}
+	}
+	return banner + m.cipJobGraphPane(width)
+}
+
+// cipJobGraphPane draws the job graph of the run the reader points at.
+func (m Model) cipJobGraphPane(width int) string {
+	id := m.cipFocusRunID()
+	if id == 0 {
+		return "  " + titleStyle.Render("PIPELINE") + "\n\n" + dimStyle.Render("  Select a run to see its pipeline.") + "\n"
+	}
+	if m.cipDetail.Error == "" && m.cipDetail.Run.ID != id {
+		return "  " + titleStyle.Render("PIPELINE") + "\n\n" + dimStyle.Render(fmt.Sprintf("  Loading the pipeline of run #%d…", id)) + "\n"
+	}
+	now := m.cipDetail.At
+	if now.IsZero() {
+		now = time.Now()
+	}
+	return cipGraphView(m.cipDetail, now, m.cipFrame, width)
+}
+
+// cipRunPane replaces the run list with the jobs of the open run.
+func (m Model) cipRunPane(width int) string {
+	detail := m.cipDetail
+	out := "  " + titleStyle.Render(fmt.Sprintf("RUN #%d", m.cipOpenID)) + "  " + dimStyle.Render("esc back to the run list") + "\n\n"
+	if detail.Error != "" {
+		return out + "  " + errStyle.Render("unavailable: "+detail.Error) + "\n"
+	}
+	if detail.Run.ID != m.cipOpenID {
+		return out + dimStyle.Render("  Loading…") + "\n"
+	}
+	now := detail.At
+	if now.IsZero() {
+		now = time.Now()
+	}
+	static := detail.Run.Status != "running"
+	if len(detail.Jobs) == 0 {
+		return out + dimStyle.Render("  No job exists for this run yet.") + "\n"
+	}
+	out += dimStyle.Render(truncate(fmt.Sprintf("   %-18s %-9s %-7s %-12s %s", "JOB", "STATUS", "STEPS", "TOOK", "NEEDS"), width)) + "\n"
+	for _, job := range detail.Jobs {
+		row := fmt.Sprintf(" %s %-18s %-9s %-7s %-12s %s",
+			cipJobMark(job.Status, m.cipFrame, static), truncate(job.Name, 18), job.Status,
+			cipJobSteps(job), cipJobTime(job, now), strings.Join(job.Needs, ", "))
+		out += clampLine(strings.TrimRight(row, " "), width) + "\n"
 	}
 	return out
 }
