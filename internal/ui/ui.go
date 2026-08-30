@@ -2135,6 +2135,15 @@ func (m Model) cipActionPane(width int) string {
 			out += "  " + warnStyle.Render("Re-run "+what+"? Press r again. Esc cancels.") + "\n"
 		}
 	}
+	// A gate nobody knows how to approve is a gate nobody approves. With
+	// no prompt on screen, name the stage that is waiting and the key
+	// that releases it.
+	if out == "" && m.cipAction == "" {
+		if id, stage, ok := m.cipApproveTarget(); ok && stage.State == "gated" {
+			out += "  " + warnStyle.Render(fmt.Sprintf("stage %s of P%d awaits approval", stage.Stage, id)) +
+				dimStyle.Render("  —  press a to approve") + "\n"
+		}
+	}
 	if m.cipActionMessage != "" {
 		style := okStyle
 		if m.cipActionIsError {

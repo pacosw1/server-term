@@ -299,3 +299,36 @@ func TestFetchCIPIsNilWithoutAWidget(t *testing.T) {
 		t.Error("fetchCIP returned a command with no cip widget configured")
 	}
 }
+
+// A gate that nobody knows how to approve is a gate nobody approves.
+// The pane names the key while a stage waits.
+func TestCIPActionPaneOffersTheApproveKeyOnAGatedStage(t *testing.T) {
+	m := cipPromoModel()
+	m.cipSel = 0
+
+	pane := m.cipActionPane(80)
+
+	if !strings.Contains(pane, "release") {
+		t.Errorf("the pane does not name the waiting stage:\n%s", pane)
+	}
+	if !strings.Contains(pane, "approve") {
+		t.Errorf("the pane does not offer the approve key:\n%s", pane)
+	}
+}
+
+// With nothing gated the pane must not invite an approval.
+func TestCIPActionPaneStaysQuietWithoutAGate(t *testing.T) {
+	m := cipPromoModel()
+	for i := range m.cipPromotions.Promotions {
+		for j := range m.cipPromotions.Promotions[i].Stages {
+			if m.cipPromotions.Promotions[i].Stages[j].State == "gated" {
+				m.cipPromotions.Promotions[i].Stages[j].State = "running"
+			}
+		}
+	}
+	m.cipSel = 0
+
+	if strings.Contains(m.cipActionPane(80), "approve") {
+		t.Error("the pane invites an approval with no gate waiting")
+	}
+}
