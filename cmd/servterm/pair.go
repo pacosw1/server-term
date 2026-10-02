@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/user"
 	"strings"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 func cliPair(ctx context.Context, cfg config.Config, args []string) error {
 	fs := flag.NewFlagSet("pair", flag.ContinueOnError)
 	useSSH := fs.Bool("ssh", false, "read a missing agent token from the host over ssh")
-	sshUser := fs.String("ssh-user", "", "shell account for a server that the inventory does not name")
+	sshUser := fs.String("ssh-user", "", "shell account for a server that the inventory does not name (default: root on Linux, you on macOS)")
 	file := fs.String("file", "", "write the setup JSON to this file (mode 0600) instead of showing a QR code")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -45,7 +46,7 @@ func cliPair(ctx context.Context, cfg config.Config, args []string) error {
 	fmt.Fprintf(os.Stderr, "Found %d agents on your tailnet:\n", len(agents))
 	for _, agent := range agents {
 		server, known := matchServer(cfg, agent)
-		entry := pair.Server{Name: agent.Peer.ShortName(), AgentURL: agent.URL(), SSHUser: *sshUser}
+		entry := pair.Server{Name: agent.Peer.ShortName(), AgentURL: agent.URL(), SSHUser: defaultSSHUser(*sshUser, agent.Peer)}
 		token, source := "", ""
 		if known {
 			entry.Name, entry.Location = server.Name, server.Location
@@ -116,6 +117,22 @@ func cliPair(ctx context.Context, cfg config.Config, args []string) error {
 	return nil
 }
 
+// defaultSSHUser is the shell account when the inventory names none: the
+// flag when given, else root on Linux and the current user on macOS, which
+// is how the installers set the hosts up.
+func defaultSSHUser(flagUser string, peer pair.Peer) string {
+	if flagUser != "" {
+		return flagUser
+	}
+	if strings.EqualFold(peer.OS, "linux") {
+		return "root"
+	}
+	if u, err := user.Current(); err == nil {
+		return u.Username
+	}
+	return ""
+}
+
 // matchServer finds the inventory entry of an agent by its address.
 func matchServer(cfg config.Config, agent pair.Agent) (config.Server, bool) {
 	names := []string{agent.Peer.IP, agent.Peer.ShortName(), strings.TrimSuffix(agent.Peer.DNSName, ".")}
@@ -136,14 +153,14 @@ func matchServer(cfg config.Config, agent pair.Agent) (config.Server, bool) {
 }
 
 // sshTarget is the ssh destination: the inventory host when there is one,
-// so ~/.ssh/config applies, else the MagicDNS name.
+// so ~/.ssh/config applies, else the Tailscale address of the machine.
 func sshTarget(server config.Server, known bool, peer pair.Peer, user string) string {
-	host := strings.TrimSuffix(peer.DNSName, ".")
+	host := peer.IP
 	if known && server.Address != "" {
-		host, user = server.Address, server.User
-	}
-	if host == "" {
-		host = peer.IP
+		host = server.Address
+		if server.User != "" {
+			user = server.User
+		}
 	}
 	if user != "" {
 		return user + "@" + host

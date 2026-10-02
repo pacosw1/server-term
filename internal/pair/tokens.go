@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,11 +62,18 @@ cat /etc/servterm/agent.env 2>/dev/null ||
 sudo -n cat /etc/servterm/agent.env 2>/dev/null`
 
 // SSHToken reads the agent token of a remote host over OpenSSH. BatchMode
-// makes it fail at once, rather than ask, for a host key or a password.
-// The token goes into memory only.
+// makes it fail at once, rather than ask, for a password. The token goes
+// into memory only.
+//
+// A Tailscale address is authenticated by WireGuard: only that node can
+// answer on it. So for such an address a host key seen for the first time
+// is accepted and recorded. A key that changed is still refused.
 func SSHToken(ctx context.Context, target string) (string, error) {
-	cmd := exec.CommandContext(ctx, "ssh",
-		"-o", "BatchMode=yes", "-o", "ConnectTimeout=5", target, remoteTokenScript)
+	args := []string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=5"}
+	if IsTailscaleIP(hostOf(target)) {
+		args = append(args, "-o", "StrictHostKeyChecking=accept-new")
+	}
+	cmd := exec.CommandContext(ctx, "ssh", append(args, target, remoteTokenScript)...)
 	out, err := cmd.Output()
 	if err != nil {
 		var exit *exec.ExitError
@@ -79,6 +87,22 @@ func SSHToken(ctx context.Context, target string) (string, error) {
 		return "", errors.New("no agent token on the host")
 	}
 	return token, nil
+}
+
+// tailnetRange is the CGNAT block that Tailscale assigns addresses from.
+var tailnetRange = netip.MustParsePrefix("100.64.0.0/10")
+
+// IsTailscaleIP reports whether host is an address inside the tailnet range.
+func IsTailscaleIP(host string) bool {
+	addr, err := netip.ParseAddr(host)
+	return err == nil && tailnetRange.Contains(addr)
+}
+
+func hostOf(target string) string {
+	if _, host, ok := strings.Cut(target, "@"); ok {
+		return host
+	}
+	return target
 }
 
 func lastLine(text string) string {

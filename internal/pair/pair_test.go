@@ -152,3 +152,22 @@ func TestRenderQRHasAQuietZoneAndResetsColour(t *testing.T) {
 		}
 	}
 }
+
+func TestIsTailscaleIPCoversOnlyTheTailnetRange(t *testing.T) {
+	cases := map[string]bool{
+		"100.64.0.1":    true,
+		"100.127.255.1": true,
+		"100.128.0.1":   false,
+		"192.168.1.10":  false,
+		"box.ts.net":    false,
+		"":              false,
+	}
+	for in, want := range cases {
+		if got := IsTailscaleIP(in); got != want {
+			t.Errorf("IsTailscaleIP(%q) = %v, want %v", in, got, want)
+		}
+	}
+	if hostOf("root@100.64.0.1") != "100.64.0.1" || hostOf("100.64.0.1") != "100.64.0.1" {
+		t.Fatal("hostOf must drop the user")
+	}
+}
