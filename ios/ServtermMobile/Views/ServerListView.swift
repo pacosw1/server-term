@@ -17,7 +17,9 @@ struct ServerListView: View {
                         }
                         ForEach(model.config.servers) { server in
                             NavigationLink(value: server) {
-                                ServerCardView(server: server, reading: model.servers[server.id])
+                                ServerCardView(
+                                    server: server, reading: model.servers[server.id],
+                                    hasToken: !model.token(for: server.id).isEmpty)
                             }
                             .buttonStyle(.plain)
                         }

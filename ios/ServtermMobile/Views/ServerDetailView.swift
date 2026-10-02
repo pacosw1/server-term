@@ -40,6 +40,17 @@ struct ServerDetailView: View {
                         if showsMore {
                             details(sample)
                         }
+                    } else if model.token(for: server.id).isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Needs token", systemImage: "key")
+                                .font(.headline)
+                                .foregroundStyle(Theme.warning)
+                            Text("The app found this server but has no token for it. On your Mac, run **servterm pair --ssh** and scan again, or add the token in Settings.")
+                                .font(.footnote)
+                                .foregroundStyle(Theme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .card()
                     } else if let error = reading?.error {
                         ErrorBanner(message: error)
                     } else {

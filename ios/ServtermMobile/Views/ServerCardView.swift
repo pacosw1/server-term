@@ -6,6 +6,9 @@ import ServtermKit
 struct ServerCardView: View {
     let server: ServerEntry
     let reading: Reading<Sample>?
+    /// hasToken is false for a server that the app found but cannot read
+    /// yet. It says so, rather than look like a server that is down.
+    var hasToken = true
 
     private var sample: Sample? { reading?.value }
 
@@ -52,6 +55,7 @@ struct ServerCardView: View {
             if reading?.error != nil { return ("stale", Theme.warning, "Not updating") }
             return ("online", Theme.normal, nil)
         }
+        if !hasToken { return ("needs token", Theme.warning, "Needs token") }
         if reading?.error != nil { return ("unreachable", Theme.critical, "Can't connect") }
         return ("loading", Theme.muted, nil)
     }
@@ -64,12 +68,17 @@ private struct Metric: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(Format.optionalPercent(percent))
+            // A row has room for a whole number only. The detail screen
+            // shows the decimals.
+            Text(percent.map { "\(Int($0.rounded()))%" } ?? Format.unknown)
                 .font(.subheadline.monospacedDigit().bold())
                 .foregroundStyle(Theme.color(for: percent))
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(Theme.muted)
         }
+        .lineLimit(1)
+        // The numbers keep their width; the name truncates instead.
+        .fixedSize()
     }
 }
