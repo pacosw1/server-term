@@ -47,6 +47,7 @@ struct ServerListView: View {
 /// EmptyServerView tells the user what to do when no server is set up.
 struct EmptyServerView: View {
     @Environment(AppModel.self) private var model
+    @State private var showsPairing = false
 
     var body: some View {
         VStack(spacing: Theme.cardSpacing) {
@@ -56,8 +57,25 @@ struct EmptyServerView: View {
             ContentUnavailableView {
                 Label("No servers", systemImage: "server.rack")
             } description: {
-                Text("Tap the gear to add one.")
+                Text("Run **servterm pair** on your Mac, then scan the code.")
+            } actions: {
+                Button {
+                    showsPairing = true
+                } label: {
+                    Label("Scan pairing code", systemImage: "qrcode.viewfinder")
+                        .font(.headline)
+                        .foregroundStyle(Theme.base)
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 50)
+                        .background(Theme.accent)
+                        .clipShape(.rect(cornerRadius: Theme.cardRadius))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("scan-pairing")
             }
+        }
+        .sheet(isPresented: $showsPairing) {
+            PairingView()
         }
     }
 }

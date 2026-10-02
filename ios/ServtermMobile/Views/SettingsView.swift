@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var editsOrchestrator = false
     @State private var showsImport = false
     @State private var showsDetect = false
+    @State private var showsPairing = false
 
     var body: some View {
         NavigationStack {
@@ -42,7 +43,9 @@ struct SettingsView: View {
                             .tint(Theme.dangerFill)
                         }
                     }
-                    Button("Add a server") { addsServer = true }
+                    Button("Scan pairing code", systemImage: "qrcode.viewfinder") { showsPairing = true }
+                        .foregroundStyle(Theme.accent)
+                    Button("Add a server by hand") { addsServer = true }
                         .foregroundStyle(Theme.accent)
                 } header: {
                     Text("Servers").foregroundStyle(Theme.muted)
@@ -128,6 +131,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showsDetect) {
                 DetectView()
+            }
+            .sheet(isPresented: $showsPairing) {
+                PairingView()
             }
         }
     }

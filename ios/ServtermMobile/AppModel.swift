@@ -164,7 +164,30 @@ final class AppModel {
             bootstrapMessage = message
         case .imported(let result):
             apply(result)
+            if !bootstrapFailed {
+                bootstrapMessage = "The app imported \(result.config.servers.count) servers and deleted the import file."
+            }
         }
+    }
+
+    /// importPairing adds the setup from a scanned pairing code. It returns
+    /// the message for the screen and whether the import worked. The code
+    /// is the same JSON as the import file, so both share one parser.
+    @discardableResult
+    func importPairing(_ text: String) -> (ok: Bool, message: String) {
+        let result: BootstrapImport.Result
+        do {
+            result = try BootstrapImport.parse(Data(text.utf8))
+        } catch let error as ServtermError {
+            return (false, "That code is not a servterm pairing code: \(error.message).")
+        } catch {
+            return (false, "That code is not a servterm pairing code.")
+        }
+        apply(result)
+        if bootstrapFailed { return (false, Self.keychainFailure) }
+        bootstrapMessage = nil
+        let count = result.config.servers.count
+        return (true, count == 1 ? "Added 1 server." : "Added \(count) servers.")
     }
 
     /// apply merges the imported setup. It keeps the entry that already
@@ -205,9 +228,7 @@ final class AppModel {
         }
         save(next)
         bootstrapFailed = !saved
-        bootstrapMessage = saved
-            ? "The app imported \(result.config.servers.count) servers and deleted the import file."
-            : Self.keychainFailure
+        bootstrapMessage = saved ? nil : Self.keychainFailure
     }
 
     // MARK: - reading
