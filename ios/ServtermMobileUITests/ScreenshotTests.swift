@@ -18,6 +18,8 @@ final class ScreenshotTests: XCTestCase {
             firstServer.tap()
             Thread.sleep(forTimeInterval: 8)
             capture(app, name: "02-server-detail")
+            app.buttons["more-details"].firstMatch.tap()
+            Thread.sleep(forTimeInterval: 1)
             capture(app, name: "03-server-detail-lower", afterScrollingDown: app)
             for _ in 0..<3 { app.swipeUp() }
             Thread.sleep(forTimeInterval: 2)
@@ -51,7 +53,7 @@ final class ScreenshotTests: XCTestCase {
             goBack(app)
         }
 
-        app.tabBars.buttons["Runners"].tap()
+        openFromMenu(app, "Runners")
         Thread.sleep(forTimeInterval: 6)
         capture(app, name: "04-runners")
 
@@ -70,8 +72,9 @@ final class ScreenshotTests: XCTestCase {
             }
             goBack(app)
         }
+        goBack(app)
 
-        app.tabBars.buttons["Agents"].tap()
+        openFromMenu(app, "Agents")
         Thread.sleep(forTimeInterval: 6)
         capture(app, name: "05-agents")
 
@@ -92,10 +95,18 @@ final class ScreenshotTests: XCTestCase {
             }
             goBack(app)
         }
+        goBack(app)
 
-        app.tabBars.buttons["Settings"].tap()
+        app.buttons["open-settings"].firstMatch.tap()
         Thread.sleep(forTimeInterval: 2)
         capture(app, name: "07-settings")
+    }
+
+    /// openFromMenu opens a page from the menu of the home screen.
+    private func openFromMenu(_ app: XCUIApplication, _ title: String) {
+        app.buttons["more-menu"].firstMatch.tap()
+        let item = app.buttons[title].firstMatch
+        if item.waitForExistence(timeout: 3) { item.tap() }
     }
 
     /// goBack leaves one screen, if a back button is there to press.

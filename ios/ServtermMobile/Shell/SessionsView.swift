@@ -22,13 +22,13 @@ struct SessionsView: View {
                     }
                     switch sessions.listing {
                     case .loading:
-                        Text("Reading the sessions on \(server.host)…")
+                        Text("Loading…")
                             .font(.footnote)
                             .foregroundStyle(Theme.muted)
                             .card()
                     case .failed(let reason):
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("The app cannot read the sessions").font(.headline)
+                            Text("Can't list sessions").font(.headline)
                             Text(reason)
                                 .font(.footnote)
                                 .foregroundStyle(Theme.muted)
@@ -37,8 +37,8 @@ struct SessionsView: View {
                         .card()
                     case .sessions(let list) where list.isEmpty:
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("No session yet").font(.headline)
-                            Text("This host runs no tmux session now. Make one, and it keeps running after you close the app.")
+                            Text("No sessions").font(.headline)
+                            Text("Start one below. It keeps running after you close the app.")
                                 .font(.footnote)
                                 .foregroundStyle(Theme.muted)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -68,16 +68,13 @@ struct SessionsView: View {
                             .card()
                     }
                     .buttonStyle(.plain)
-                    Text("Hold a session to kill it. Every other action only reads.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.muted)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, Theme.cardSpacing)
             }
             .refreshable { await sessions.refresh(server: server) }
         }
-        .navigationTitle("Sessions")
+        .navigationTitle("Terminal")
         .navigationBarTitleDisplayMode(.inline)
         .task { await sessions.refresh(server: server) }
         .sheet(isPresented: $showsNew) {
@@ -109,34 +106,25 @@ struct SessionRow: View {
     let now: Date
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(session.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                    Spacer(minLength: 8)
-                    StateChip(
-                        text: session.isAttached ? "attached" : "detached",
-                        color: session.isAttached ? Theme.normal : Theme.muted,
-                        systemImage: session.isAttached ? "bolt.fill" : "moon.zzz")
-                }
-                HStack(spacing: 12) {
-                    Label("^[\(session.windows) window](inflect: true)", systemImage: "square.on.square")
-                    Label(Format.duration(seconds: session.idleSeconds(now: now)) + " idle", systemImage: "clock")
-                }
-                .font(.caption)
-                .monospacedDigit()
-                .foregroundStyle(Theme.muted)
-                Text("started " + session.created.formatted(date: .abbreviated, time: .shortened))
+        HStack(spacing: 12) {
+            Circle()
+                .fill(session.isAttached ? Theme.normal : Theme.muted)
+                .frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.name)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text("idle " + Format.duration(seconds: session.idleSeconds(now: now)))
                     .font(.caption)
+                    .monospacedDigit()
                     .foregroundStyle(Theme.muted)
             }
+            Spacer(minLength: 8)
             Image(systemName: "chevron.right")
                 .font(.footnote)
                 .foregroundStyle(Theme.muted)
-                .padding(.top, 4)
         }
+        .frame(minHeight: Theme.minimumTapTarget)
         .card()
         .accessibilityElement(children: .combine)
         .accessibilityHint("attaches to this session")

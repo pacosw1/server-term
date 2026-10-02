@@ -1,8 +1,12 @@
 import SwiftUI
 import ServtermKit
 
+/// ServerDetailView puts the two things a user comes for at the top: the
+/// terminal and the four headline numbers. Every other reading folds away
+/// under "More details".
 struct ServerDetailView: View {
     @Environment(AppModel.self) private var model
+    @State private var showsMore = false
     let server: ServerEntry
 
     private var reading: Reading<Sample>? { model.servers[server.id] }
@@ -13,83 +17,34 @@ struct ServerDetailView: View {
             PageBackground()
             ScrollView {
                 LazyVStack(spacing: Theme.cardSpacing) {
-                    if let error = reading?.error {
-                        ErrorBanner(message: error)
-                    }
                     NavigationLink(value: SessionsRoute(server: server)) {
-                        Label("Shell sessions", systemImage: "terminal")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.accent)
-                            .frame(maxWidth: .infinity, minHeight: Theme.minimumTapTarget, alignment: .leading)
-                            .card()
+                        Label("Open terminal", systemImage: "terminal")
+                            .font(.headline)
+                            .foregroundStyle(Theme.base)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .background(Theme.accent)
+                            .clipShape(.rect(cornerRadius: Theme.cardRadius))
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("open-shell")
+
                     if let sample = reading?.value {
-                        ServerHeaderCard(
-                            sample: sample, fetchedAt: reading?.fetchedAt,
-                            isStale: reading?.error != nil,
-                            transport: model.transports[server.id] ?? .idle,
-                            roundTrip: model.roundTrips[server.id])
-                        BlockChartCard(
-                            title: "CPU",
-                            columns: SparkBars.columns(
-                                from: history, window: 36, mode: .spread) { $0.cpuPercent },
-                            latest: sample.cpuPercent,
-                            isPercent: true)
-                        BlockChartCard(
-                            title: "Memory",
-                            columns: SparkBars.columns(
-                                from: history, window: 36, mode: .spread) { $0.memoryPercent ?? 0 },
-                            latest: sample.memoryPercent,
-                            isPercent: true)
-                        BlockChartCard(
-                            title: "Network in",
-                            columns: SparkBars.columns(
-                                from: history, window: 36, scale: .relative, mode: .spread) { $0.netRxRate },
-                            latest: sample.netRxRate,
-                            isPercent: false)
-                        BlockChartCard(
-                            title: "Network out",
-                            columns: SparkBars.columns(
-                                from: history, window: 36, scale: .relative, mode: .spread) { $0.netTxRate },
-                            latest: sample.netTxRate,
-                            isPercent: false)
-                        CoreGridView(cores: sample.corePercent)
-                        ServerStorageCard(disks: sample.sortedDisks)
-                        if !sample.devices.isEmpty {
-                            ServerDevicesCard(devices: sample.devices)
+                        if reading?.error != nil {
+                            Label("Not updating. Showing the last reading.", systemImage: "clock.badge.exclamationmark")
+                                .font(.footnote)
+                                .foregroundStyle(Theme.warning)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        ServerNetworkCard(sample: sample)
-                        if !sample.interfaces.isEmpty {
-                            InterfacesCard(
-                                interfaces: sample.interfaces,
-                                ratesKnown: model.hasTwoReadings(server.id))
+                        headline(sample)
+                        moreToggle
+                        if showsMore {
+                            details(sample)
                         }
-                        // A card appears only when the host reports that
-                        // kind. A virtual machine has no sensor and macOS
-                        // reports no block device traffic; that is normal,
-                        // so the screen shows nothing instead of an empty
-                        // block that reads as broken.
-                        if sample.hasDiskIO {
-                            DiskIOCard(
-                                entries: sample.diskIO, disks: sample.disks,
-                                ratesKnown: model.hasTwoReadings(server.id))
-                        }
-                        if sample.hasSensors {
-                            TemperaturesCard(temperatures: sample.temperatures)
-                        }
-                        if sample.hasPressure {
-                            ServerPressureCard(sample: sample)
-                        }
-                        if !sample.accelerators.isEmpty {
-                            ServerAcceleratorCard(accelerators: sample.accelerators)
-                        }
-                        ServerProcessCard(sample: sample)
+                    } else if let error = reading?.error {
+                        ErrorBanner(message: error)
                     } else {
-                        Text("The app has no reading of this server yet.")
-                            .foregroundStyle(Theme.muted)
-                            .card()
+                        ProgressView()
+                            .frame(maxWidth: .infinity, minHeight: 120)
                     }
                 }
                 .padding(.horizontal)
@@ -111,5 +66,70 @@ struct ServerDetailView: View {
         .pollEvery(seconds: 3) {
             await model.refresh(server: server)
         }
+    }
+
+    private func headline(_ sample: Sample) -> some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 12) {
+                StatTile(
+                    label: "CPU", value: Format.percent(sample.cpuPercent),
+                    tint: Theme.color(for: sample.cpuPercent))
+                StatTile(
+                    label: "Memory", value: Format.optionalPercent(sample.memoryPercent),
+                    tint: Theme.color(for: sample.memoryPercent))
+            }
+            HStack(spacing: 12) {
+                StatTile(
+                    label: "Disk", value: Format.optionalPercent(sample.primaryDisk?.usedPercent),
+                    tint: Theme.color(for: sample.primaryDisk?.usedPercent))
+                StatTile(label: "Uptime", value: Format.duration(seconds: sample.uptimeSeconds))
+            }
+        }
+        .card()
+    }
+
+    private var moreToggle: some View {
+        Button {
+            withAnimation(.snappy) { showsMore.toggle() }
+        } label: {
+            HStack {
+                Text(showsMore ? "Fewer details" : "More details")
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .rotationEffect(.degrees(showsMore ? 180 : 0))
+            }
+            .font(.subheadline)
+            .foregroundStyle(Theme.muted)
+            .frame(minHeight: Theme.minimumTapTarget)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("more-details")
+    }
+
+    @ViewBuilder
+    private func details(_ sample: Sample) -> some View {
+        BlockChartCard(
+            title: "CPU",
+            columns: SparkBars.columns(from: history, window: 36, mode: .spread) { $0.cpuPercent },
+            latest: sample.cpuPercent,
+            isPercent: true)
+        BlockChartCard(
+            title: "Memory",
+            columns: SparkBars.columns(from: history, window: 36, mode: .spread) { $0.memoryPercent ?? 0 },
+            latest: sample.memoryPercent,
+            isPercent: true)
+        ServerProcessCard(sample: sample)
+        ServerStorageCard(disks: sample.sortedDisks)
+        ServerNetworkCard(sample: sample)
+        // A card appears only when the host reports that kind, so a
+        // virtual machine with no sensor shows no empty block.
+        if sample.hasSensors {
+            TemperaturesCard(temperatures: sample.temperatures)
+        }
+        if !sample.accelerators.isEmpty {
+            ServerAcceleratorCard(accelerators: sample.accelerators)
+        }
+        ServerHeaderCard(sample: sample)
     }
 }
