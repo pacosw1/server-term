@@ -17,12 +17,13 @@ import (
 )
 
 type Server struct {
-	NodeID, Token string
-	Store         *Store
-	Log           *slog.Logger
-	mu            sync.Mutex
-	clients       map[chan []byte]struct{}
-	latest        metrics.WireSample
+	NodeID, Token  string
+	DesktopEnabled bool
+	Store          *Store
+	Log            *slog.Logger
+	mu             sync.Mutex
+	clients        map[chan []byte]struct{}
+	latest         metrics.WireSample
 }
 
 func NewServer(nodeID, token string, store *Store, log *slog.Logger) *Server {
@@ -33,6 +34,11 @@ func NewServer(nodeID, token string, store *Store, log *slog.Logger) *Server {
 }
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	if s.DesktopEnabled {
+		mux.HandleFunc("GET /v1/desktop/vnc", s.auth(s.desktop))
+		mux.HandleFunc("POST /v1/cip/sessions", s.auth(s.cipStart))
+		mux.HandleFunc("GET /v1/cip/sessions/{name}", s.auth(s.cipStatus))
+	}
 	mux.HandleFunc("GET /v1/status", s.status)
 	mux.HandleFunc("GET /v1/history", s.auth(s.history))
 	mux.HandleFunc("GET /v1/stream", s.auth(s.stream))

@@ -32,6 +32,7 @@ func run() error {
 	flag.StringVar(&tokenFile, "token-file", "", "read bearer token from a protected file")
 	flag.DurationVar(&interval, "interval", time.Second, "live stream sample interval")
 	flag.DurationVar(&retention, "retention", 30*24*time.Hour, "history retention")
+	desktop := flag.Bool("desktop", false, "enable authenticated desktop relay to local VNC on port 5900")
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
 	if *showVersion {
@@ -55,6 +56,7 @@ func run() error {
 	defer store.Close()
 	log := slog.Default()
 	server := agent.NewServer(node, token, store, log)
+	server.DesktopEnabled = *desktop
 	runner := agent.NewRunner(server, interval, retention, log)
 	httpServer := &http.Server{Addr: listen, Handler: server.Handler(), ReadHeaderTimeout: 5 * time.Second}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

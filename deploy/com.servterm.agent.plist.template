@@ -18,7 +18,7 @@
   <key>GroupName</key><string>staff</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>ProcessType</key><string>Background</string>
+  <key>ProcessType</key><string>Standard</string>
   <key>StandardOutPath</key><string>__STATE_DIR__/agent.log</string>
   <key>StandardErrorPath</key><string>__STATE_DIR__/agent.err.log</string>
 </dict>
