@@ -45,5 +45,7 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>The app reads the servterm agent on your tailnet.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>The camera scans the pairing code that servterm pair shows on your Mac.</string>
 </dict>
 </plist>

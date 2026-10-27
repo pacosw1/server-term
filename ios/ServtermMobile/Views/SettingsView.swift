@@ -3,11 +3,13 @@ import ServtermKit
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     @State private var editedServer: ServerEntry?
     @State private var addsServer = false
     @State private var editsOrchestrator = false
     @State private var showsImport = false
     @State private var showsDetect = false
+    @State private var showsPairing = false
 
     var body: some View {
         NavigationStack {
@@ -28,10 +30,6 @@ struct SettingsView: View {
                                     Text(server.agentURL)
                                         .font(.footnote)
                                         .foregroundStyle(Theme.muted)
-                                    ConnectionLine(
-                                        transport: model.transports[server.id] ?? .idle,
-                                        fetchedAt: model.servers[server.id]?.fetchedAt,
-                                        roundTrip: model.roundTrips[server.id])
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -45,7 +43,9 @@ struct SettingsView: View {
                             .tint(Theme.dangerFill)
                         }
                     }
-                    Button("Add a server") { addsServer = true }
+                    Button("Scan pairing code", systemImage: "qrcode.viewfinder") { showsPairing = true }
+                        .foregroundStyle(Theme.accent)
+                    Button("Add a server by hand") { addsServer = true }
                         .foregroundStyle(Theme.accent)
                 } header: {
                     Text("Servers").foregroundStyle(Theme.muted)
@@ -90,11 +90,11 @@ struct SettingsView: View {
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                 } header: {
-                    Text("Shell access").foregroundStyle(Theme.muted)
+                    Text("Terminal access").foregroundStyle(Theme.muted)
                 }
 
                 Section {
-                    Button("Detect the servterm ports") { showsDetect = true }
+                    Button("Find a server by address") { showsDetect = true }
                         .foregroundStyle(Theme.accent)
                     Button("Import a config") { showsImport = true }
                         .foregroundStyle(Theme.accent)
@@ -102,42 +102,6 @@ struct SettingsView: View {
                     Text("Tools").foregroundStyle(Theme.muted)
                 }
 
-                Section {
-                    Text("""
-                        The app reads a server over a live socket when it can. \
-                        It falls back to a request every 3 seconds when the socket \
-                        fails, and it says so on the server card. \
-                        The orchestrator has no socket, so it always polls, \
-                        and only while the Agents tab is open.
-                        """)
-                        .font(.footnote)
-                        .foregroundStyle(Theme.muted)
-                } header: {
-                    Text("Connections").foregroundStyle(Theme.muted)
-                }
-
-                Section {
-                    Text("""
-                        The app reads the servterm agent over your tailnet. \
-                        Your phone must run Tailscale and must be in the same tailnet. \
-                        The app cannot ask the Tailscale control plane for your machine list. \
-                        Therefore it cannot find a host by itself. \
-                        You paste a host or an IP address, and the app tests port 7843 for an agent \
-                        and port 7844 for the orchestrator.
-                        """)
-                        .font(.footnote)
-                        .foregroundStyle(Theme.muted)
-                    Text("""
-                        The app keeps every token in the iOS Keychain. \
-                        It keeps the host list in the app settings. \
-                        It sends each token only to the address that you gave for it. \
-                        The connections use plain HTTP, because the tailnet already protects them.
-                        """)
-                        .font(.footnote)
-                        .foregroundStyle(Theme.muted)
-                } header: {
-                    Text("How the app reads your servers").foregroundStyle(Theme.muted)
-                }
             }
             // A plain list keeps the square rows that this theme asks for.
             // A grouped list would round every row.
@@ -147,6 +111,12 @@ struct SettingsView: View {
             .background(Theme.base)
             .listRowSeparatorTint(Theme.border)
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
             .sheet(isPresented: $addsServer) {
                 ServerEditView(server: nil)
             }
@@ -161,6 +131,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showsDetect) {
                 DetectView()
+            }
+            .sheet(isPresented: $showsPairing) {
+                PairingView()
             }
         }
     }

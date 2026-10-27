@@ -178,3 +178,51 @@ struct BootstrapAppTests {
         #expect(model.config.servers[0].sshUser == "root")
     }
 }
+
+@MainActor
+@Suite("Pairing in the app")
+struct PairingAppTests {
+    private func makeModel(tokens: any TokenStore) -> AppModel {
+        AppModel(
+            api: ServtermAPI(client: URLSessionHTTPClient()),
+            tokens: tokens,
+            defaults: UserDefaults(suiteName: "test." + UUID().uuidString)!)
+    }
+
+    @Test("a scanned code adds the servers and saves their tokens")
+    func scanAdds() {
+        let store = MemoryTokenStore()
+        let model = makeModel(tokens: store)
+        let outcome = model.importPairing(body)
+        #expect(outcome.ok)
+        #expect(outcome.message == "Added 1 server.")
+        #expect(model.config.servers.map(\.name) == ["server-a"])
+        let id = model.config.servers[0].id.uuidString
+        #expect(store.token(for: id) == "token-a")
+        #expect(model.bootstrapMessage == nil)
+    }
+
+    @Test("scanning the same code twice makes no copy")
+    func scanTwice() {
+        let model = makeModel(tokens: MemoryTokenStore())
+        model.importPairing(body)
+        model.importPairing(body)
+        #expect(model.config.servers.count == 1)
+    }
+
+    @Test("a code from somewhere else is refused and changes nothing")
+    func foreignCode() {
+        let model = makeModel(tokens: MemoryTokenStore())
+        let outcome = model.importPairing("https://example.com")
+        #expect(!outcome.ok)
+        #expect(model.config.servers.isEmpty)
+    }
+
+    @Test("a Keychain that refuses the token is reported, not a success")
+    func keychainFails() {
+        let model = makeModel(tokens: FailingTokenStore())
+        let outcome = model.importPairing(body)
+        #expect(!outcome.ok)
+        #expect(outcome.message == AppModel.keychainFailure)
+    }
+}

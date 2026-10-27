@@ -194,11 +194,16 @@ func FetchCIP(ctx context.Context, provider config.Widget, token string) CIPSnap
 		return result
 	}
 	base := strings.TrimRight(provider.Endpoint, "/")
-	var runs []CIPRun
-	if err := cipGet(ctx, base+"/runs", token, &runs); err != nil {
+	// GET /runs answers one page, {runs, nextCursor}; the newest page is
+	// all the snapshot keeps.
+	var page struct {
+		Runs []CIPRun `json:"runs"`
+	}
+	if err := cipGet(ctx, base+"/runs", token, &page); err != nil {
 		result.Error = err.Error()
 		return result
 	}
+	runs := page.Runs
 	var storage cipStorage
 	if err := cipGet(ctx, base+"/storage", token, &storage); err != nil {
 		result.Error = err.Error()

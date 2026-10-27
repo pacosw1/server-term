@@ -74,30 +74,29 @@ struct ShellView: View {
         .onDisappear { shell.leave() }
     }
 
+    /// header is one slim line. It shows the state only until the shell is
+    /// up, or when it fails, so a working terminal gets the whole screen.
+    @ViewBuilder
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                StateChip(text: shell.state.label, color: stateColor, systemImage: stateIcon)
-                Spacer(minLength: 8)
-                Label(server.name, systemImage: "server.rack")
-                    .font(.caption)
-                    .foregroundStyle(Theme.muted)
+        if !isConnected || shell.setupError != nil {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(shell.state.label.capitalized, systemImage: stateIcon)
+                    .font(.footnote.bold())
+                    .foregroundStyle(stateColor)
+                if let error = shell.setupError {
+                    ErrorBanner(message: error)
+                }
             }
-            Text(shell.note)
-                .font(.caption)
-                .foregroundStyle(Theme.muted)
-                .fixedSize(horizontal: false, vertical: true)
-            if let error = shell.setupError {
-                ErrorBanner(message: error)
-            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.surface)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.surface)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Theme.border).frame(height: Theme.borderWidth)
-        }
+    }
+
+    private var isConnected: Bool {
+        if case .connected = shell.state { return true }
+        return false
     }
 
     private var stateColor: Color {
@@ -134,7 +133,7 @@ struct HostKeyWarningView: View {
                 .font(.footnote)
                 .foregroundStyle(Theme.text)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("The app will not connect. There is no way past this screen inside the app. Clear the trusted key in Settings only when you know why it changed.")
+            Text("The app will not connect. If you know why the key changed, clear it in Settings.")
                 .font(.caption)
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)

@@ -8,41 +8,39 @@ struct RunnersView: View {
     private var hosts: [ServerEntry] { model.runnerServers }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                PageBackground()
-                if model.config.servers.isEmpty {
-                    ContentUnavailableView {
-                        Label("No server yet", systemImage: "play.square.stack")
-                    } description: {
-                        Text("Open Settings and add a server. The runners come from the same agent.")
-                    }
-                } else if hosts.isEmpty {
-                    ContentUnavailableView {
-                        Label("No runner", systemImage: "play.square.stack")
-                    } description: {
-                        Text("No server reports a CI runner now. This is a normal state, not a fault.")
-                    }
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: Theme.cardSpacing) {
-                            ForEach(hosts) { server in
-                                RunnerHostCard(server: server, reading: model.servers[server.id])
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, Theme.cardSpacing)
-                    }
-                    .refreshable { await model.refreshAllServers(force: true) }
+        ZStack {
+            PageBackground()
+            if model.config.servers.isEmpty {
+                ContentUnavailableView {
+                    Label("No servers", systemImage: "play.square.stack")
+                } description: {
+                    Text("Add a server in Settings.")
                 }
+            } else if hosts.isEmpty {
+                ContentUnavailableView {
+                    Label("No runners", systemImage: "play.square.stack")
+                } description: {
+                    Text("No CI runners right now.")
+                }
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: Theme.cardSpacing) {
+                        ForEach(hosts) { server in
+                            RunnerHostCard(server: server, reading: model.servers[server.id])
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, Theme.cardSpacing)
+                }
+                .refreshable { await model.refreshAllServers(force: true) }
             }
-            .navigationTitle("Runners")
-            .navigationDestination(for: RunnerRoute.self) { route in
-                RunnerDetailView(server: route.server)
-            }
-            .navigationDestination(for: JobRoute.self) { route in
-                RunnerJobDetailView(server: route.server, job: route.job)
-            }
+        }
+        .navigationTitle("Runners")
+        .navigationDestination(for: RunnerRoute.self) { route in
+            RunnerDetailView(server: route.server)
+        }
+        .navigationDestination(for: JobRoute.self) { route in
+            RunnerJobDetailView(server: route.server, job: route.job)
         }
         // The runners screen shows the same servers, so it keeps the same
         // sockets open while it is visible.

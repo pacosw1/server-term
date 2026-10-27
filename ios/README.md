@@ -20,6 +20,15 @@ once in a dialog instead.
 
 ## Install on a device
 
+From the repository root, with the phone plugged in and unlocked:
+
+```sh
+make ios-install
+```
+
+That builds, installs and launches on the first connected iPhone. The steps
+it runs are:
+
 ```sh
 xcrun devicectl device install app --device <UDID> \
   build/dd/Build/Products/Debug-iphoneos/ServtermMobile.app
@@ -40,6 +49,12 @@ cd ios && xcodebuild test -scheme ServtermMobile \
 
 The `Screenshots` scheme drives every screen and keeps one picture of each
 as a test attachment.
+
+## Adding servers
+
+Run `servterm pair` on a Mac in the tailnet and scan the code from the
+empty home screen, or from Settings → Scan pairing code. See the main
+README for its flags.
 
 ## The key of the phone
 

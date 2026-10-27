@@ -47,6 +47,14 @@ func run() error {
 		return initConfig(*path)
 	}
 	cfg, err := config.Load(*path)
+	if len(args) > 0 && args[0] == "pair" {
+		// Pairing finds the agents on the tailnet by itself, so it runs
+		// without an inventory. One that exists adds names and tokens.
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return cliPair(context.Background(), cfg, args[1:])
+	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("config not found at %s (run `servterm init`)", *path)

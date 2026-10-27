@@ -60,6 +60,26 @@ manager, `nohup`, or a shell supervisor to run it in the background and restart
 it. The output file is append-only and mode `0600`; each line has
 `schema_version`, `server`, and `sample` fields.
 
+### Pair the iPhone app
+
+`servterm pair` finds every agent on your tailnet and shows one QR code. In
+the app, tap **Scan pairing code** and every server is added, token and all.
+
+```sh
+servterm pair                  # discover, then show the QR code
+servterm pair --ssh            # also read missing tokens from each host over ssh
+servterm pair --ssh-user root  # shell account for hosts the inventory does not name
+servterm pair --file setup.json  # write the setup instead (mode 0600)
+```
+
+It asks `tailscale status` for the machines (it finds the CLI inside
+Tailscale.app on macOS), then probes port 7843 on each online one. An
+inventory is optional: when one exists it supplies names, locations, shell
+accounts, tokens, and the orchestrator. Without one, tokens come from this
+machine's own agent, or from `--ssh`, which uses `BatchMode` and fails rather
+than prompt for a host key or password. The QR code holds the tokens, so
+clear the terminal after scanning.
+
 ### MCP for Codex/Claude
 
 Run Servterm as a local stdio MCP server. The MCP process reads the protected
