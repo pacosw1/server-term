@@ -40,7 +40,7 @@ func cipServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/runs":
-			_, _ = w.Write([]byte(runsJSON))
+			_, _ = w.Write([]byte(`{"runs":` + runsJSON + `,"nextCursor":38}`))
 		case "/storage":
 			_, _ = w.Write([]byte(storageJSON))
 		default:
@@ -179,7 +179,7 @@ func TestFetchCIPFailsClosedOnNon200(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				switch r.URL.Path {
 				case "/runs":
-					_, _ = w.Write([]byte(runsJSON))
+					_, _ = w.Write([]byte(`{"runs":` + runsJSON + `,"nextCursor":38}`))
 				case "/storage":
 					_, _ = w.Write([]byte(storageJSON))
 				}
@@ -277,7 +277,7 @@ func TestFetchCIPIsNotHealthyWhenTheDiskIsNearlyFull(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/runs":
-			_, _ = w.Write([]byte(`[]`))
+			_, _ = w.Write([]byte(`{"runs":[]}`))
 		case "/storage":
 			_, _ = w.Write([]byte(`{"repos":[],"cipBytes":1,"diskFreeBytes":3,"diskTotalBytes":100}`))
 		}
@@ -301,7 +301,7 @@ func TestFetchCIPIsHealthyWithNoRuns(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/runs":
-			_, _ = w.Write([]byte(`[]`))
+			_, _ = w.Write([]byte(`{"runs":[]}`))
 		case "/storage":
 			_, _ = w.Write([]byte(`{"repos":[],"cipBytes":0,"diskFreeBytes":50,"diskTotalBytes":100}`))
 		}
@@ -317,14 +317,14 @@ func TestFetchCIPIsHealthyWithNoRuns(t *testing.T) {
 // so the panel stays readable.
 func TestFetchCIPKeepsOnlyTheNewestRunsButCountsThemAll(t *testing.T) {
 	var b strings.Builder
-	b.WriteString("[")
+	b.WriteString(`{"runs":[`)
 	for i := 0; i < maxCIPRuns+5; i++ {
 		if i > 0 {
 			b.WriteString(",")
 		}
 		b.WriteString(`{"ID":1,"Repo":"r","Status":"failed","StartedAt":"2026-08-27T20:00:00Z","FinishedAt":"2026-08-27T20:01:00Z"}`)
 	}
-	b.WriteString("]")
+	b.WriteString("]}")
 	body := b.String()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
