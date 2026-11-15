@@ -1,0 +1,53 @@
+{
+  "version": "0",
+  "name": "servterm",
+  "stages": [
+    {
+      "name": "verify",
+      "queueSafe": true,
+      "jobs": [
+        {
+          "name": "go-test-vet",
+          "image": "golang:1.26",
+          "steps": [
+            {
+              "run": "if [ -n \"${CIP_CHANGED_FILES+x}\" ] && ! printf '%s' \"$CIP_CHANGED_FILES\" | tr ':' '\\n' | grep -Eq '^(cmd|internal)/.*\\.go$|^go\\.(mod|sum)$'; then echo 'impact: no Go source/module change; skip'; exit 0; fi\nif find cmd internal -name '*.go' -type f -exec gofmt -l {} + | grep -q .; then echo 'gofmt required'; find cmd internal -name '*.go' -type f -exec gofmt -l {} +; exit 1; fi\ngo vet ./...\ngo test ./..."
+            }
+          ],
+          "limits": {
+            "cpus": 4,
+            "timeoutSec": 120,
+            "memoryMb": 4096
+          }
+        },
+        {
+          "name": "go-lint",
+          "image": "golangci/golangci-lint:v2.15.0",
+          "steps": [
+            {
+              "run": "if [ -n \"${CIP_CHANGED_FILES+x}\" ] && ! printf '%s' \"$CIP_CHANGED_FILES\" | tr ':' '\\n' | grep -Eq '^(cmd|internal)/.*\\.go$|^go\\.(mod|sum)$'; then echo 'impact: no Go source/module change; skip lint'; exit 0; fi\ngolangci-lint run ./..."
+            }
+          ],
+          "limits": {
+            "cpus": 2,
+            "timeoutSec": 120,
+            "memoryMb": 4096
+          }
+        },
+        {
+          "name": "ios-build",
+          "runsOn": "macos",
+          "paths": ["ios/"],
+          "steps": [
+            {
+              "run": "make ios-ci"
+            }
+          ],
+          "limits": {
+            "timeoutSec": 600
+          }
+        }
+      ]
+    }
+  ]
+}

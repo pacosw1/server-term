@@ -1,4 +1,4 @@
-.PHONY: build build-agent-linux build-agent-macos build-desktop-agent test check run
+.PHONY: build build-agent-linux build-agent-macos build-desktop-agent test check run ios-ci
 
 build:
 	go build -o bin/servterm ./cmd/servterm
@@ -30,3 +30,8 @@ check:
 
 run:
 	go run ./cmd/servterm --config servterm.example.yaml
+# The CIP gate builds the simulator target without signing or provisioning.
+ios-ci:
+	cd ios && xcodegen generate && xcodebuild -scheme ServtermMobile -derivedDataPath build/dd \
+		-skipPackagePluginValidation -skipMacroValidation -destination 'generic/platform=iOS Simulator' \
+		CODE_SIGNING_ALLOWED=NO build
