@@ -22,7 +22,7 @@ packages:
     path: ServtermSSH
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm.git
-    from: 1.20.0
+    exactVersion: 1.20.0
 targets:
   ServtermMobile:
     type: application
