@@ -35,6 +35,35 @@
           }
         },
         {
+          "name": "build-binaries",
+          "image": "golang:1.26",
+          "env": {
+            "GOCACHE": "/cip-cache-shared/go-build",
+            "GOMODCACHE": "/cip-cache-shared/go-mod"
+          },
+          "steps": [
+            {
+              "run": "mkdir -p \"$CIP_ARTIFACTS\"\nexport CGO_ENABLED=0 GOFLAGS=-buildvcs=false\nbuild() { GOOS=$1 GOARCH=$2 go build -trimpath -ldflags '-s -w' -o \"$CIP_ARTIFACTS/$3-$1-$2\" \"./cmd/$3\" || exit 1; }\nfor c in servterm servterm-agent servterm-desktop-agent servterm-runner-probe servterm-accelerator-probe servterm-resource-guard; do build linux amd64 $c; done\nfor c in servterm servterm-desktop-agent servterm-accelerator-probe; do build darwin arm64 $c; done\nls -l \"$CIP_ARTIFACTS\""
+            }
+          ],
+          "promoteArtifacts": [
+            "servterm-linux-amd64",
+            "servterm-agent-linux-amd64",
+            "servterm-desktop-agent-linux-amd64",
+            "servterm-runner-probe-linux-amd64",
+            "servterm-accelerator-probe-linux-amd64",
+            "servterm-resource-guard-linux-amd64",
+            "servterm-darwin-arm64",
+            "servterm-desktop-agent-darwin-arm64",
+            "servterm-accelerator-probe-darwin-arm64"
+          ],
+          "limits": {
+            "cpus": 4,
+            "timeoutSec": 300,
+            "memoryMb": 4096
+          }
+        },
+        {
           "name": "ios-build",
           "runsOn": "macos",
           "paths": ["ios/"],
@@ -45,6 +74,40 @@
           ],
           "limits": {
             "timeoutSec": 600
+          }
+        }
+      ]
+    },
+    {
+      "name": "release",
+      "jobs": [
+        {
+          "name": "publish",
+          "image": "golang:1.26",
+          "usePromotedArtifacts": [
+            "servterm-linux-amd64",
+            "servterm-agent-linux-amd64",
+            "servterm-desktop-agent-linux-amd64",
+            "servterm-runner-probe-linux-amd64",
+            "servterm-accelerator-probe-linux-amd64",
+            "servterm-resource-guard-linux-amd64",
+            "servterm-darwin-arm64",
+            "servterm-desktop-agent-darwin-arm64",
+            "servterm-accelerator-probe-darwin-arm64"
+          ],
+          "steps": [
+            {
+              "run": "mkdir -p dist\nfor n in servterm-linux-amd64 servterm-agent-linux-amd64 servterm-desktop-agent-linux-amd64 servterm-runner-probe-linux-amd64 servterm-accelerator-probe-linux-amd64 servterm-resource-guard-linux-amd64 servterm-darwin-arm64 servterm-desktop-agent-darwin-arm64 servterm-accelerator-probe-darwin-arm64; do\n  v=\"CIP_PROMOTED_ARTIFACT_$(printf '%s' \"$n\" | tr 'a-z.-' 'A-Z__')\"\n  p=$(eval \"printf '%s' \\\"\\${$v-}\\\"\")\n  [ -n \"$p\" ] || { echo \"no tested build artifact for $n; refusing to rebuild after merge\"; exit 1; }\n  cp \"$p\" \"dist/$n\"\ndone\nls -l dist"
+            }
+          ],
+          "release": {
+            "tag": "build-${CIP_SHA}",
+            "assets": ["dist/*"]
+          },
+          "limits": {
+            "cpus": 1,
+            "timeoutSec": 120,
+            "memoryMb": 1024
           }
         }
       ]
