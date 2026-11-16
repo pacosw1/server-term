@@ -24,7 +24,6 @@ func TestFetchNVRNormalizesStats(t *testing.T) {
 	}
 }
 
-
 // nvrd reports its OWN cpu under CPUPercent and the cost of its ffmpeg
 // children separately, with total_cpu_percent covering both. The daemon's own
 // figure badly understates it -- an ffmpeg is forked per thumbnail, motion
