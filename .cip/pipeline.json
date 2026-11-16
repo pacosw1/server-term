@@ -97,12 +97,12 @@
           ],
           "steps": [
             {
-              "run": "mkdir -p dist\nfor n in servterm-linux-amd64 servterm-agent-linux-amd64 servterm-desktop-agent-linux-amd64 servterm-runner-probe-linux-amd64 servterm-accelerator-probe-linux-amd64 servterm-resource-guard-linux-amd64 servterm-darwin-arm64 servterm-desktop-agent-darwin-arm64 servterm-accelerator-probe-darwin-arm64; do\n  v=\"CIP_PROMOTED_ARTIFACT_$(printf '%s' \"$n\" | tr 'a-z.-' 'A-Z__')\"\n  p=$(eval \"printf '%s' \\\"\\${$v-}\\\"\")\n  [ -n \"$p\" ] || { echo \"no tested build artifact for $n; refusing to rebuild after merge\"; exit 1; }\n  cp \"$p\" \"dist/$n\"\ndone\nchmod 755 dist\nchmod 644 dist/*\nls -l dist"
+              "run": "mkdir -p .cip/release\nfor n in servterm-linux-amd64 servterm-agent-linux-amd64 servterm-desktop-agent-linux-amd64 servterm-runner-probe-linux-amd64 servterm-accelerator-probe-linux-amd64 servterm-resource-guard-linux-amd64 servterm-darwin-arm64 servterm-desktop-agent-darwin-arm64 servterm-accelerator-probe-darwin-arm64; do\n  v=\"CIP_PROMOTED_ARTIFACT_$(printf '%s' \"$n\" | tr 'a-z.-' 'A-Z__')\"\n  p=$(eval \"printf '%s' \\\"\\${$v-}\\\"\")\n  [ -n \"$p\" ] || { echo \"no tested build artifact for $n; refusing to rebuild after merge\"; exit 1; }\n  cp \"$p\" \".cip/release/$n\"\ndone\nls -l .cip/release"
             }
           ],
           "release": {
             "tag": "build-${CIP_SHA}",
-            "assets": ["dist/*"]
+            "assets": [".cip/release/*"]
           },
           "limits": {
             "cpus": 1,
